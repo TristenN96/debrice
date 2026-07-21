@@ -41,9 +41,12 @@ lint_cmd() {
 		echo "$CACHE/shellcheck-v0.10.0/shellcheck"
 	else
 		mkdir -p "$CACHE"
-		curl -fsSLo "$CACHE/sc.tar.xz" \
-			https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz \
-			&& tar -xJf "$CACHE/sc.tar.xz" -C "$CACHE" || die "cannot obtain shellcheck"
+		if curl -fsSLo "$CACHE/sc.tar.xz" \
+			https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz; then
+			tar -xJf "$CACHE/sc.tar.xz" -C "$CACHE" || die "cannot extract shellcheck"
+		else
+			die "cannot obtain shellcheck"
+		fi
 		echo "$CACHE/shellcheck-v0.10.0/shellcheck"
 	fi
 }
@@ -79,9 +82,12 @@ trixie_packages() {
 	mkdir -p "$CACHE"
 	[ -f "$CACHE/Packages-trixie-main" ] || {
 		note "downloading Trixie main package index"
-		curl -fsSLo "$CACHE/Packages-trixie-main.xz" \
-			http://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz \
-			&& xz -dk "$CACHE/Packages-trixie-main.xz" || die "cannot fetch Trixie index"
+		if curl -fsSLo "$CACHE/Packages-trixie-main.xz" \
+			http://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz; then
+			xz -dk "$CACHE/Packages-trixie-main.xz" || die "cannot decompress Trixie index"
+		else
+			die "cannot fetch Trixie index"
+		fi
 	}
 	echo "$CACHE/Packages-trixie-main"
 }
@@ -132,7 +138,7 @@ EOF
 		return
 	fi
 	# Local static fallback: grep the Trixie (and Brave) package indices.
-	local trixie brave tname bname fail=0 tag name
+	local trixie brave fail=0 tag name
 	trixie="$(trixie_packages)"
 	brave="$(brave_packages)"
 	while IFS=, read -r tag name _; do
@@ -273,9 +279,9 @@ EOF
 	export BRAVE_KEYRING="$BUILDROOT/brave-keyring.gpg"
 	export BRAVE_SOURCES="$BUILDROOT/brave-browser-release.list"
 	export DEBRICE_SKIP_APT_UPDATE=1
-	# shellcheck source=../lib/packages.sh
+	# shellcheck source=/dev/null
 	. "$REPO/lib/packages.sh"
-	# shellcheck source=../lib/dotfiles.sh
+	# shellcheck source=/dev/null
 	. "$REPO/lib/dotfiles.sh"
 	add_brave_repo || die "add_brave_repo run 1 failed"
 	add_brave_repo || die "add_brave_repo run 2 failed"

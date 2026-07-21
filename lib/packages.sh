@@ -3,10 +3,12 @@
 # progs.csv parsing, apt helpers and external (Brave) repository setup.
 # Sourced by debrice.sh and by the container tests; expects to run as root.
 
-BRAVE_KEYRING="/usr/share/keyrings/brave-browser-archive-keyring.gpg"
-BRAVE_KEYRING_URL="https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg"
-BRAVE_SOURCES="/etc/apt/sources.list.d/brave-browser-release.list"
-BRAVE_SOURCE_LINE="deb [signed-by=${BRAVE_KEYRING}] https://brave-browser-apt-release.s3.brave.com/ stable main"
+# Paths and repo metadata. Assignments are defaults only: the container tests
+# override them via the environment to run without root.
+: "${BRAVE_KEYRING:=/usr/share/keyrings/brave-browser-archive-keyring.gpg}"
+: "${BRAVE_SOURCES:=/etc/apt/sources.list.d/brave-browser-release.list}"
+: "${BRAVE_KEYRING_URL:=https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg}"
+: "${BRAVE_SOURCE_LINE:=deb [signed-by=${BRAVE_KEYRING}] https://brave-browser-apt-release.s3.brave.com/ stable main}"
 
 # apt_install PKG [PKG...] — non-interactive apt install.
 apt_install() {
@@ -27,7 +29,8 @@ add_brave_repo() {
 		echo "$BRAVE_SOURCE_LINE" >"$BRAVE_SOURCES"
 		changed=1
 	fi
-	if [ "$changed" -eq 1 ] || [ "${DEBRICE_FORCE_APT_UPDATE:-0}" = 1 ]; then
+	if [ "${DEBRICE_SKIP_APT_UPDATE:-0}" != 1 ] &&
+		{ [ "$changed" -eq 1 ] || [ "${DEBRICE_FORCE_APT_UPDATE:-0}" = 1 ]; }; then
 		apt-get update >/dev/null 2>&1 || return 1
 	fi
 	return 0
