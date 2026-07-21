@@ -16,7 +16,7 @@ gitmakeinstall() {
 	dir="$repodir/$prog"
 	mkdir -p "$repodir"
 	if [ -d "$dir/.git" ]; then
-		sudo -u "$name" git -C "$dir" pull --force >/dev/null 2>&1 || return 1
+		sudo -u "$name" git -C "$dir" pull --force >/dev/null || return 1
 	else
 		sudo -u "$name" git clone --depth 1 --single-branch --no-tags -q \
 			"$url" "$dir" || return 1
@@ -24,10 +24,10 @@ gitmakeinstall() {
 	case " $NOBUILD_REPOS " in
 	*" $prog "*) : ;; # header-only/script repo: nothing to compile
 	*)
-		(cd "$dir" && sudo -u "$name" make >/dev/null 2>&1) || return 1
+		(cd "$dir" && sudo -u "$name" make >/dev/null) || return 1
 		;;
 	esac
-	(cd "$dir" && make install >/dev/null 2>&1) || return 1
+	(cd "$dir" && make install >/dev/null) || return 1
 	return 0
 }
 

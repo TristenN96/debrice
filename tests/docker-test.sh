@@ -29,8 +29,15 @@ fi
 # repo mounted read-only at /debrice. (-i is required: without it the
 # container's stdin is closed and `bash -s` exits 0 immediately, making
 # every stage a silent no-op.)
+# The host's / is nearly full, so apt metadata (lists, deb cache) and $HOME
+# churn (clones, builds, dotfiles) live on tmpfs in host RAM instead of the
+# container's overlay filesystem.
 run_container() {
-	docker run --rm -i -v "$REPO:/debrice:ro" "$IMAGE" bash -s
+	docker run --rm -i \
+		--tmpfs /var/lib/apt/lists \
+		--tmpfs /var/cache/apt \
+		--tmpfs /home \
+		-v "$REPO:/debrice:ro" "$IMAGE" bash -s
 }
 
 ###############################################################################
@@ -115,10 +122,10 @@ EOF
 }
 
 ###############################################################################
-# runtime — execute debrice.sh for real through the prereq-install phase
+# runtime — execute debrice.sh end-to-end and verify the build phase landed
 ###############################################################################
 stage_runtime() {
-	note "Stage: runtime execution of debrice.sh (prereq phase) [$MODE]"
+	note "Stage: end-to-end runtime of debrice.sh [$MODE]"
 	if [ "$MODE" != docker ]; then
 		note "needs root + apt in a disposable system — docker-only, skipping"
 		return 0
@@ -129,13 +136,38 @@ export DEBIAN_FRONTEND=noninteractive
 
 # Lint and package-resolution checks never execute debrice.sh's own code
 # paths in order — only a real run surfaces "command not found" (unsourced
-# libraries, typos in function names) and ordering bugs. Run non-interactively
-# through at least the prereq-install phase (DEBRICE_PREFLIGHT_ONLY stops
-# right after it, before the heavyweight installation loop).
+# libraries), missing tools (sudo) and manifest-ordering bugs (build deps
+# after the G block). Run the script end-to-end with a trimmed manifest that
+# keeps the real structure (build deps BEFORE the G entries, apt entries on
+# both sides of them) but drops multi-GB packages like texlive-full.
+cat >/tmp/progs-e2e.csv <<'CSV'
+#TAG,NAME IN REPO (or git url),PURPOSE
+,sudo,"allows privilege escalation; debrice's own git build steps run through it."
+,bc,"is a mathematics language used for the dropdown calculator."
+,fzf,"is a fuzzy finder tool used for easy selection and location of files."
+,build-essential,"provides compilers and make for building software."
+,pkg-config,"locates library compile flags for builds."
+,libx11-dev,"is the X11 client library needed to build st, dmenu, sxwm and sxbar."
+,libxft-dev,"is the X FreeType library needed to build st, dmenu and sxbar."
+,libxinerama-dev,"is the Xinerama library needed to build dmenu, sxwm and sxbar."
+,libxcursor-dev,"is the X cursor library needed to build sxwm."
+,libfontconfig1-dev,"is the font configuration library needed to build st and sxbar."
+,libxext-dev,"is the X extensions library needed to build slock."
+,libxrandr-dev,"is the X resize-and-rotate library needed to build slock."
+,libharfbuzz-dev,"provides text shaping needed to build st with ligatures."
+G,https://github.com/uint23/sxbar.git,"serves as the modular status bar."
+G,https://github.com/lukesmithxyz/dmenu.git,"runs commands and provides a UI for selection."
+G,https://github.com/lukesmithxyz/st.git,"is Luke's custom build of suckless's terminal emulator."
+G,https://github.com/uint23/sxwm.git,"is the window manager."
+G,https://github.com/LukeSmithxyz/mutt-wizard.git,"is a light-weight terminal-based email system."
+G,https://git.suckless.org/slock,"allows you to lock your computer, and quickly unlock with your password."
+,moreutils,"provides chronic, sponge and other handy utilities."
+CSV
+
 rc=0
-DEBRICE_ASSUME_YES=1 DEBRICE_PREFLIGHT_ONLY=1 \
+DEBRICE_ASSUME_YES=1 PROGS_FILE=/tmp/progs-e2e.csv \
 	DEBRICE_USER=debricetest DEBRICE_PASSWORD=testpass123 \
-	timeout 600 bash /debrice/debrice.sh </dev/null >/tmp/runtime.log 2>&1 || rc=$?
+	timeout 1800 bash /debrice/debrice.sh </dev/null >/tmp/runtime.log 2>&1 || rc=$?
 cat /tmp/runtime.log
 [ "$rc" -eq 0 ] \
 	|| { echo "RUNTIME FAILED: debrice.sh exited with status $rc"; exit 1; }
@@ -143,9 +175,24 @@ if grep -q "command not found" /tmp/runtime.log; then
 	echo "RUNTIME FAILED: 'command not found' in debrice.sh output"
 	exit 1
 fi
-grep -q "Preflight checks passed" /tmp/runtime.log \
-	|| { echo "RUNTIME FAILED: prereq-install phase did not complete"; exit 1; }
-echo "RUNTIME OK"
+grep -q "Installation summary" /tmp/runtime.log \
+	|| { echo "RUNTIME FAILED: installation summary missing — run did not reach finalization"; exit 1; }
+grep -qE "apt packages: +[0-9]+ installed, 0 failed" /tmp/runtime.log \
+	|| { echo "RUNTIME FAILED: apt packages failed during the run"; exit 1; }
+grep -qE "git builds: +6 installed" /tmp/runtime.log \
+	|| { echo "RUNTIME FAILED: summary does not show 6 git builds installed"; exit 1; }
+for b in sxwm sxbar st dmenu slock; do
+	[ -x "/usr/local/bin/$b" ] \
+		|| { echo "RUNTIME FAILED: /usr/local/bin/$b missing after install"; exit 1; }
+done
+# mutt-wizard installs `mw` (prefix-dependent location — check PATH).
+command -v mw >/dev/null 2>&1 \
+	|| { echo "RUNTIME FAILED: mw (mutt-wizard) not on PATH after install"; exit 1; }
+# moreutils sits after the G block in the manifest: proves the loop kept
+# processing apt entries after the git builds.
+command -v sponge >/dev/null 2>&1 \
+	|| { echo "RUNTIME FAILED: apt entries after the G block were not installed"; exit 1; }
+echo "RUNTIME OK (end-to-end: prereqs, apt, 6 git builds, dotfiles, summary)"
 EOF
 }
 

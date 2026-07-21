@@ -222,12 +222,12 @@ scripts/check-binds.sh          # keybinding coverage alone
 ```
 
 With working docker, every stage runs in a `debian:trixie` container:
-shellcheck lint, non-interactive preflight, a runtime stage that executes
-`debrice.sh` itself through the prerequisite-install phase (failing on any
-"command not found" or nonzero exit), package resolution via apt-cache for
-every `,`/`R` entry, compilation of st/dmenu/slock/sxwm/sxbar with only the
-declared build deps, an idempotency run, and an Xvfb smoke test of sxwm +
-config reload.
+shellcheck lint, non-interactive preflight, an end-to-end runtime stage that
+executes `debrice.sh` with a trimmed manifest and asserts the git-built
+binaries (`sxwm`, `sxbar`, `st`, `dmenu`, `slock`, `mw`) actually landed,
+package resolution via apt-cache for every `,`/`R` entry, compilation of
+st/dmenu/slock/sxwm/sxbar with only the declared build deps, an idempotency
+run, and an Xvfb smoke test of sxwm + config reload.
 Without docker the script degrades to static local verification (Trixie and
 Brave package indices, host builds, a fake-HOME deploy, and config
 validation with sxwm's/sxbar's own parsers) and says so loudly.

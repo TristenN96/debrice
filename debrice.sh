@@ -168,7 +168,8 @@ bootstraprepo() {
 		DEBRICE_DIR="/tmp/debrice-repo"
 	fi
 	export DEBRICE_DIR
-	export PROGS_FILE="$DEBRICE_DIR/progs.csv"
+	# Tests may point PROGS_FILE at a trimmed manifest; default to the repo's.
+	export PROGS_FILE="${PROGS_FILE:-$DEBRICE_DIR/progs.csv}"
 	export DEBRICE_DOTFILES_SRC="$DEBRICE_DIR/dotfiles"
 	export DEBRICE_STATIC_SRC="$DEBRICE_DIR/static"
 	# shellcheck source=lib/packages.sh
@@ -207,29 +208,83 @@ repoinstall() {
 }
 
 gitinstall() {
-	local prog
+	local prog bin
 	prog="$(basename "$1" .git)"
 	say "Installing \`$prog\` ($n of $total) via \`git\` and \`make\`. $2"
-	gitmakeinstall "$1"
+	gitmakeinstall "$1" ||
+		error "git build failed: $prog (from $1). The failing step's output is above."
+	# A build phase that installs nothing must be impossible to miss: verify
+	# the binary actually landed. mutt-wizard installs `mw`; every other repo
+	# ships a binary named after the repo.
+	case "$prog" in
+	mutt-wizard) bin=mw ;;
+	*) bin="$prog" ;;
+	esac
+	command -v "$bin" >/dev/null 2>&1 ||
+		error "git build of $prog completed but '$bin' is not on PATH."
 }
 
 installationloop() {
 	total="$(progs_count)"
 	n=0
+	apt_ok=0 apt_fail=0 repo_ok=0 repo_fail=0 git_ok=0 script_ok=0
+	failed_apt="" failed_repo=""
 	progs_dispatch() {
 		local tag="$1" program="$2" comment="$3"
 		n=$((n + 1))
 		case "$tag" in
-		R) repoinstall "$program" "$comment" ;;
-		G) gitinstall "$program" "$comment" ;;
+		R)
+			if repoinstall "$program" "$comment"; then
+				repo_ok=$((repo_ok + 1))
+			else
+				repo_fail=$((repo_fail + 1))
+				failed_repo="$failed_repo $program"
+			fi
+			;;
+		G)
+			gitinstall "$program" "$comment"
+			git_ok=$((git_ok + 1))
+			;;
 		S)
 			say "Installing \`$(basename "$program")\` ($n of $total) as a script. $comment"
-			scriptinstall "$(basename "$program")" "$program"
+			scriptinstall "$(basename "$program")" "$program" ||
+				error "script install failed: $(basename "$program") (from $program)."
+			[ -x "/usr/local/bin/$(basename "$program")" ] ||
+				error "script install of $(basename "$program") finished but /usr/local/bin/$(basename "$program") is missing or not executable."
+			script_ok=$((script_ok + 1))
 			;;
-		*) maininstall "$program" "$comment" ;;
+		*)
+			if maininstall "$program" "$comment"; then
+				apt_ok=$((apt_ok + 1))
+			else
+				apt_fail=$((apt_fail + 1))
+				failed_apt="$failed_apt $program"
+			fi
+			;;
 		esac
 	}
 	progs_each progs_dispatch
+	# The manifest ships G entries by design; if fewer builds landed than the
+	# file declares, dispatch/parsing broke — fail loudly, never skip a whole
+	# phase silently again.
+	local g_expected
+	g_expected="$(grep -c '^G,' "$PROGS_FILE")"
+	[ "$git_ok" -eq "$g_expected" ] ||
+		error "git build phase incomplete: $git_ok of $g_expected manifest git builds installed."
+}
+
+print_install_summary() {
+	# Last-screen scoreboard: a silently skipped phase shows up as zeros here.
+	say "Installation summary:"
+	printf '    apt packages:   %d installed, %d failed%s\n' \
+		"$apt_ok" "$apt_fail" "${failed_apt:+ — FAILED:${failed_apt}}"
+	printf '    repo packages:  %d installed, %d failed%s\n' \
+		"$repo_ok" "$repo_fail" "${failed_repo:+ — FAILED:${failed_repo}}"
+	printf '    git builds:     %d installed (failures are FATAL, see above)\n' "$git_ok"
+	printf '    scripts:        %d installed (failures are FATAL, see above)\n' "$script_ok"
+	if [ "$apt_fail" -ne 0 ] || [ "$repo_fail" -ne 0 ]; then
+		say "WARNING: some packages failed to install — re-run debrice.sh after fixing the entries named above."
+	fi
 }
 
 vimplugininstall() {
@@ -320,6 +375,9 @@ add_brave_repo || error "Could not add the Brave repository."
 adduserandpass || error "Error adding username and/or password."
 
 # Allow user to run sudo without password for the duration of the install.
+# /etc/sudoers.d only exists once the sudo package is installed (or not at
+# all on a sudo-less system) — create it.
+mkdir -p /etc/sudoers.d
 trap 'rm -f /etc/sudoers.d/debrice-temp' HUP INT QUIT TERM PWR EXIT
 echo "%sudo ALL=(ALL) NOPASSWD: ALL
 Defaults:%sudo,root runcwd=*" >/etc/sudoers.d/debrice-temp
@@ -344,6 +402,7 @@ install_cheatsheet "$DEBRICE_STATIC_SRC"
 
 # Most important command! Get rid of the beep!
 rmmod pcspkr 2>/dev/null || true
+mkdir -p /etc/modprobe.d
 echo "blacklist pcspkr" >/etc/modprobe.d/nobeep.conf
 
 # Make zsh the default shell for the user.
@@ -387,5 +446,7 @@ echo "kernel.dmesg_restrict = 0" >/etc/sysctl.d/dmesg.conf
 # Cleanup
 rm -f /etc/sudoers.d/debrice-temp
 
-# Last message! Install complete!
+# Last message! Install complete! Print the per-phase scoreboard first, so a
+# silently skipped phase is visible in the final screen of output.
+print_install_summary
 finalize

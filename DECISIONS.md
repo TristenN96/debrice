@@ -252,3 +252,37 @@ session. The docker stage now uses Xvfb (pure framebuffer, no host
 requirements) for the same sxwm launch + super+F5 reload assertions; the
 stage keeps its `xephyr` CLI name. D22's "full suite green" had come from
 the local fallback, where the stage silently degraded to parsecheck.
+
+## D26 — Silent git-build phase: missing sudo, misordered deps, swallowed errors
+Bare-metal run #2 exited 0 with zero G builds in /usr/local/bin. Four
+stacked causes, the first three each independently sufficient:
+1. sudo was present neither on a root-password netinstall nor in progs.csv,
+   and every gitmakeinstall step goes through `sudo -u $name` — the clone
+   died (rc 127) before make was ever reached. Fixed: `,sudo` added to
+   progs.csv ahead of the G block.
+2. The build toolchain (build-essential, pkg-config, libx*-dev) sat AFTER
+   the G block in progs.csv, so even with sudo every `make` failed. Fixed:
+   deps moved ahead of the G entries — manifest ordering is load-bearing,
+   and the e2e runtime stage now guards it (it also installs an apt entry
+   placed after the G block, proving the loop keeps going).
+3. progs_each declared `local name` and bash's DYNAMIC SCOPING made it
+   visible down the call stack: inside gitmakeinstall, `$name` was the CSV
+   name field (the git URL), not the username — `sudo -u https://...` died
+   with "unknown user" for every G entry. Caught by the first e2e runtime
+   run. Fixed: progs_each's locals are pe_-prefixed.
+4. gitmakeinstall sent stdout+stderr to /dev/null and gitinstall ignored
+   the return code, so all failure modes were invisible and the script
+   exited 0. Fixed: build stderr stays visible, G/S install failures are
+   FATAL, and every G/S install must produce its expected binary
+   (mutt-wizard→mw, everything else=repo name) or die naming the package.
+
+Also: installationloop now counts per-tag pass/fail (apt/repo failures
+listed by name, non-fatal as in LARBS), print_install_summary runs before
+finalize so a skipped phase shows as zeros on the last screen, and a
+post-loop assertion aborts if fewer git builds landed than `^G,` lines in
+the manifest. bootstraprepo respects a preset PROGS_FILE so the docker
+runtime stage can drive debrice.sh end-to-end with a trimmed manifest
+(texlive-full et al. dropped) and assert the binaries landed.
+/etc/sudoers.d and /etc/modprobe.d are not guaranteed to exist (both absent
+in the debian:trixie image, and sudoers.d absent on any sudo-less system) —
+mkdir -p before writing to them.

@@ -10,9 +10,10 @@
 : "${BRAVE_KEYRING_URL:=https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg}"
 : "${BRAVE_SOURCE_LINE:=deb [signed-by=${BRAVE_KEYRING}] https://brave-browser-apt-release.s3.brave.com/ stable main}"
 
-# apt_install PKG [PKG...] — non-interactive apt install.
+# apt_install PKG [PKG...] — non-interactive apt install. stderr stays
+# visible: a failed install must show apt's own diagnosis.
 apt_install() {
-	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$@" >/dev/null 2>&1
+	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$@" >/dev/null
 }
 
 # add_brave_repo — add Brave's official apt repository and keyring.
@@ -38,15 +39,18 @@ add_brave_repo() {
 
 # progs_each CALLBACK — read progs.csv and invoke CALLBACK TAG NAME COMMENT
 # for every non-comment line. CSV format: TAG,NAME,"PURPOSE".
+# Locals are pe_-prefixed on purpose: bash's dynamic scoping would make a
+# plain `local name` here visible to every callback invoked below, clobbering
+# debrice.sh's global $name (the username) inside gitmakeinstall's sudo -u.
 progs_each() {
-	local callback="$1" tag name comment
-	while IFS=, read -r tag name comment; do
-		case "$tag" in \#*) continue ;; esac
-		[ -z "$name" ] && continue
+	local pe_callback="$1" pe_tag pe_name pe_comment
+	while IFS=, read -r pe_tag pe_name pe_comment; do
+		case "$pe_tag" in \#*) continue ;; esac
+		[ -z "$pe_name" ] && continue
 		# Strip surrounding double quotes from the comment.
-		comment="${comment%\"}"
-		comment="${comment#\"}"
-		"$callback" "$tag" "$name" "$comment"
+		pe_comment="${pe_comment%\"}"
+		pe_comment="${pe_comment#\"}"
+		"$pe_callback" "$pe_tag" "$pe_name" "$pe_comment"
 	done <"$PROGS_FILE"
 }
 
