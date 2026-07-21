@@ -80,15 +80,21 @@ intervals are chosen per module (fast for volume/nettraf, slow for
 forecast/clock). Lost dwmblocks click actions ($BLOCK_BUTTON) are recorded in
 DIFFERENCES.md. sxbar module cmds run via popen() → sb-* scripts work as-is.
 
-## D9 — sxwmrc look: gruvbox-dark from voidrice Xresources
-Luke's dwm colors come from Xresources (ResourcePref: norm border←color0,
-sel border←color8). sxwm has no Xresources support, so the resolved values are
-hardcoded into sxwmrc: unfocused border = color0 (#282828 family), focused
-border = Xresources color8 (gruvbox red), border_width 3, gaps 10 (dwm's mixed
+## D9 — sxwmrc look: gruvbox-dark, harmonized with Luke's st palette
+Investigation note: voidrice's xresources ships every palette commented out
+(only alpha and font are active), so Luke's dwm actually runs on config.h's
+compiled-in #222222/#444444/#770000 defaults; the gruvbox look of a LARBS
+desktop comes from st's config.h palette (#282828 bg, #ebdbb2 fg, #cc241d
+red). sxwm has no Xresources support, so sxwmrc hardcodes: unfocused border
+#282828 (st bg), focused border #cc241d (st red — same hue family as dwm's
+#770000), swap border #ebdbb2, border_width 3, gaps 10 (dwm's mixed
 20/10/10/30 vanity gaps collapse into sxwm's single `gaps` value; 10 matches
 the dominant inner/outer horizontal gap). `new_win_master : true` reproduces
-dwm's new-window-becomes-master semantics. `master_width : 55` matches dwm's
-mfact 0.55; `resize_master_amount : 5` matches setmfact ±0.05 steps.
+dwm's new-window-becomes-master semantics; `master_width : 55` matches
+mfact 0.55; `resize_master_amount : 5` matches setmfact ±0.05 steps;
+`snap_distance : 32` matches dwm's snap. Trailing `#` comments are only used
+on atoi-parsed numeric options: sxwm's parser does not strip comments from
+bind lines or strcmp-parsed booleans (caught by the parse harness).
 
 ## D10 — pacman-only voidrice scripts are excluded, not rewritten
 §2 forbids any pacman/AUR reference in the repo; §5 says deploy voidrice

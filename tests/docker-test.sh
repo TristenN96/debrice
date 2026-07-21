@@ -331,7 +331,11 @@ echo "XEPHYR SMOKE OK"
 EOF
 		return
 	fi
-	command -v Xephyr >/dev/null 2>&1 || { warn "no Xephyr on host — skipping smoke test"; return 0; }
+	command -v Xephyr >/dev/null 2>&1 || {
+		warn "no Xephyr on host — validating configs with upstream parsers instead"
+		stage_parsecheck
+		return
+	}
 	command -v xdotool >/dev/null 2>&1 || { warn "no xdotool on host — skipping smoke test"; return 0; }
 	local sxwmbin="$BUILDROOT/usr/local/bin/sxwm" fake="$BUILDROOT/xephyr-home"
 	[ -x "$sxwmbin" ] || {
@@ -355,6 +359,83 @@ EOF
 	echo "XEPHYR SMOKE OK (host)"
 }
 
+# stage_parsecheck — no-X fallback: validate sxwmrc and sxbarc by parsing
+# them with sxwm's/sxbar's own parser compiled into a stub harness.
+stage_parsecheck() {
+	note "Stage: config parse validation with upstream parsers (no-X fallback)"
+	local work="$BUILDROOT/parsecheck"
+	rm -rf "$work"
+	mkdir -p "$work/home/.config" "$work/src-sxwm" "$work/src-sxbar"
+	cp "$REPO/static/sxwmrc" "$work/home/.config/sxwmrc"
+	cp "$REPO/static/sxbarc" "$work/home/.config/sxbarc"
+	[ -d /tmp/debrice-build-sxwm/src ] || {
+		git clone --depth 1 -q https://github.com/uint23/sxwm.git /tmp/debrice-build-sxwm \
+			|| die "cannot clone sxwm for parse check"
+	}
+	[ -d /tmp/debrice-build-sxbar/src ] || {
+		git clone --depth 1 -q https://github.com/uint23/sxbar.git /tmp/debrice-build-sxbar \
+			|| die "cannot clone sxbar for parse check"
+	}
+	cp /tmp/debrice-build-sxwm/src/* "$work/src-sxwm/"
+	cp /tmp/debrice-build-sxbar/src/* "$work/src-sxbar/"
+
+	# Stub every symbol parser.c imports from sxwm.c (see src/extern.h).
+	cat >"$work/sxwm_stubs.c" <<'EOF'
+#include <stdio.h>
+#include "defs.h"
+#include "parser.h"
+void centre_window(void){} void close_focused(void){} void dec_gaps(void){}
+void focus_next(void){} void focus_prev(void){} void focus_next_mon(void){}
+void focus_prev_mon(void){} void move_next_mon(void){} void move_prev_mon(void){}
+void inc_gaps(void){} void move_master_next(void){} void move_master_prev(void){}
+void move_win_down(void){} void move_win_left(void){} void move_win_right(void){}
+void move_win_up(void){} long parse_col(const char *h){(void)h;return 0;}
+void quit(void){} void reload_config(void){} void resize_master_add(void){}
+void resize_master_sub(void){} void resize_stack_add(void){}
+void resize_stack_sub(void){} void resize_win_down(void){}
+void resize_win_left(void){} void resize_win_right(void){}
+void resize_win_up(void){} void switch_previous_workspace(void){}
+void toggle_floating(void){} void toggle_floating_global(void){}
+void toggle_fullscreen(void){} void toggle_monocle(void){}
+int main(void){ Config c; return parser(&c) == 0 ? 0 : 1; }
+EOF
+	(cc -o "$work/sxwm-parsecheck" "$work/src-sxwm/parser.c" "$work/sxwm_stubs.c" \
+		-I"$work/src-sxwm" -lX11 2>"$work/sxwm-cc.log") \
+		|| { cat "$work/sxwm-cc.log"; die "cannot compile sxwm parser harness"; }
+
+	cat >"$work/sxbar_stubs.c" <<'EOF'
+#include <stdio.h>
+#include <string.h>
+#include "defs.h"
+#include "parser.h"
+unsigned long parse_col(const char *h){(void)h;return 0;}
+void cleanup_modules(void){}
+int main(int argc, char **argv){
+	Config cfg;
+	memset(&cfg, 0, sizeof cfg);
+	if (argc < 2) return 2;
+	parse_config(argv[1], &cfg);
+	return 0;
+}
+EOF
+	(cc -o "$work/sxbar-parsecheck" "$work/src-sxbar/parser.c" "$work/sxbar_stubs.c" \
+		-I"$work/src-sxbar" 2>"$work/sxbar-cc.log") \
+		|| { cat "$work/sxbar-cc.log"; die "cannot compile sxbar parser harness"; }
+
+	local out
+	out="$(HOME="$work/home" "$work/sxwm-parsecheck" 2>&1)" \
+		|| { echo "$out"; die "sxwmrc: parser returned failure"; }
+	printf '%s\n' "$out"
+	printf '%s' "$out" | grep -E "unknown|invalid|bad key|missing|too many" \
+		&& die "sxwmrc: parser reported errors"
+	out="$("$work/sxbar-parsecheck" "$work/home/.config/sxbarc" 2>&1)" \
+		|| { echo "$out"; die "sxbarc: parser returned failure"; }
+	printf '%s\n' "$out"
+	printf '%s' "$out" | grep -E "unknown|invalid|cannot" \
+		&& die "sxbarc: parser reported errors"
+	echo "CONFIG PARSE OK (sxwmrc + sxbarc, upstream parsers)"
+}
+
 case "$STAGE" in
 lint) stage_lint ;;
 packages) stage_packages ;;
@@ -362,8 +443,9 @@ builds) stage_builds ;;
 binds) stage_binds ;;
 idempotency) stage_idempotency ;;
 xephyr) stage_xephyr ;;
+parsecheck) stage_parsecheck ;;
 all)
 	stage_lint && stage_packages && stage_builds && stage_binds && stage_idempotency && stage_xephyr
 	;;
-*) die "unknown stage: $STAGE (want: all|lint|packages|builds|binds|idempotency|xephyr)" ;;
+*) die "unknown stage: $STAGE (want: all|lint|packages|builds|binds|idempotency|xephyr|parsecheck)" ;;
 esac

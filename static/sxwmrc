@@ -1,0 +1,223 @@
+# debrice sxwmrc — Luke Smith's dwm keybindings (LukeSmithxyz/dwm config.h,
+# upstream ee3354d) ported to sxwm (https://github.com/uint23/sxwm).
+#
+# mod = super (Mod4), matching dwm's MODKEY. `bind` runs an external command,
+# `call` triggers an internal sxwm function, `workspace`/`scratchpad` are
+# sxwm's native workspace/scratchpad actions. Commands needing a shell
+# (pipes, $(...), &&, ||) are wrapped in sh -c '...'.
+#
+# Reload this file with super+F5 (sxwm's default super+r reload was moved
+# here because super+r is Luke's lfub binding).
+
+# Look: dark gruvbox tones harmonized with Luke's st palette (#282828 bg).
+mod_key                 : super
+border_width            : 3
+gaps                    : 10
+focused_border_colour   : #cc241d
+unfocused_border_colour : #282828
+swap_border_colour      : #ebdbb2
+master_width            : 55 # dwm mfact = 0.55
+resize_master_amount    : 5  # dwm setmfact steps of 0.05
+resize_stack_amount     : 20
+snap_distance           : 32 # dwm snap = 32
+move_window_amount      : 50
+resize_window_amount    : 50
+motion_throttle         : 60
+new_win_focus           : true
+warp_cursor             : true
+floating_on_top         : true
+# dwm semantics: new windows become master.
+new_win_master          : true
+should_float            : "floatterm", "spterm", "spcalc"
+can_swallow             : "st"
+can_be_swallowed        : "mpv", "nsxiv", "sxiv", "zathura"
+start_fullscreen        : "mpv"
+
+# Autostart the status bar (sxbar replaces dwmblocks).
+exec : "sxbar"
+
+####################### keybindings #######################
+
+# Focus movement (dwm focusstack).
+call : mod + j : focus_next
+call : mod + k : focus_prev
+# mod+v (focus master) has no sxwm equivalent — see DIFFERENCES.md.
+# Stack movement (dwm pushstack; sxwm rotates the stack).
+call : mod + shift + j : master_next
+call : mod + shift + k : master_prev
+
+# Emoji picker.
+bind : mod + grave : "dmenuunicode"
+
+# Workspaces 1-9 (dwm tags): view / send window.
+workspace : mod + 1 : move 1
+workspace : mod + shift + 1 : swap 1
+workspace : mod + 2 : move 2
+workspace : mod + shift + 2 : swap 2
+workspace : mod + 3 : move 3
+workspace : mod + shift + 3 : swap 3
+workspace : mod + 4 : move 4
+workspace : mod + shift + 4 : swap 4
+workspace : mod + 5 : move 5
+workspace : mod + shift + 5 : swap 5
+workspace : mod + 6 : move 6
+workspace : mod + shift + 6 : swap 6
+workspace : mod + 7 : move 7
+workspace : mod + shift + 7 : swap 7
+workspace : mod + 8 : move 8
+workspace : mod + shift + 8 : swap 8
+workspace : mod + 9 : move 9
+workspace : mod + shift + 9 : swap 9
+# mod+ctrl+N (toggleview), mod+ctrl+shift+N (toggletag), mod+0 (view all)
+# and mod+shift+0 (tag all/sticky) have no workspace analog — DIFFERENCES.md.
+
+# Volume (dwmblocks refresh signals dropped; sxbar polls sb-volume).
+bind : mod + minus : "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+bind : mod + shift + minus : "wpctl set-volume @DEFAULT_AUDIO_SINK@ 15%-"
+bind : mod + equal : "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"
+bind : mod + shift + equal : "wpctl set-volume @DEFAULT_AUDIO_SINK@ 15%+"
+
+# System menu and window close.
+bind : mod + BackSpace : "sysact"
+bind : mod + shift + BackSpace : "sysact"
+bind : mod + shift + q : "sysact"
+call : mod + q : close_window
+
+# Programs.
+bind : mod + w : "brave"
+bind : mod + shift + w : "st -e nmtui"
+bind : mod + e : "st -e neomutt"
+bind : mod + shift + e : "st -e abook"
+bind : mod + r : "st -e lfub"
+bind : mod + shift + r : "st -e htop"
+
+# Layouts: sxwm has a single master-stack layout plus monocle and global
+# floating. The other six dwm layouts have no equivalent — DIFFERENCES.md.
+call : mod + shift + u : toggle_monocle
+call : mod + shift + f : global_floating
+# mod+o / mod+shift+o (incnmaster): no equivalent — DIFFERENCES.md.
+
+# Music player.
+bind : mod + p : "mpc toggle"
+bind : mod + shift + p : "sh -c 'mpc pause; pauseallmpv'"
+bind : mod + bracketleft : "mpc seek -10"
+bind : mod + shift + bracketleft : "mpc seek -60"
+bind : mod + bracketright : "mpc seek +10"
+bind : mod + shift + bracketright : "mpc seek +60"
+bind : mod + comma : "mpc prev"
+bind : mod + shift + comma : "mpc seek 0%"
+bind : mod + period : "mpc next"
+bind : mod + shift + period : "mpc repeat"
+
+# Previous workspace (dwm's mod+Tab / mod+backslash "view").
+call : mod + Tab : switch_previous_workspace
+call : mod + backslash : switch_previous_workspace
+
+# Gaps: only stepwise adjust exists in sxwm; togglegaps/defaultgaps/
+# togglesmartgaps are dropped — DIFFERENCES.md.
+call : mod + z : increase_gaps
+call : mod + x : decrease_gaps
+
+# mod+s (togglesticky): no sticky windows in sxwm — DIFFERENCES.md.
+
+# Launchers.
+bind : mod + d : "dmenu_run"
+bind : mod + shift + d : "passmenu"
+
+# Fullscreen / floating.
+call : mod + f : fullscreen
+call : mod + shift + space : toggle_floating
+
+# Tag cycling (dwm shiftview) via wmctrl; sxwm honors _NET_CURRENT_DESKTOP.
+# shifttag (send window along) has no analog — DIFFERENCES.md.
+bind : mod + g : "sh -c 'wmctrl -s $(( ($(xdotool get_desktop) + 8) % 9 ))'"
+bind : mod + semicolon : "sh -c 'wmctrl -s $(( ($(xdotool get_desktop) + 1) % 9 ))'"
+bind : mod + Page_Up : "sh -c 'wmctrl -s $(( ($(xdotool get_desktop) + 8) % 9 ))'"
+bind : mod + Page_Down : "sh -c 'wmctrl -s $(( ($(xdotool get_desktop) + 1) % 9 ))'"
+
+# Master area resize (dwm setmfact).
+call : mod + h : master_decrease
+call : mod + l : master_increase
+
+# Scratchpads. sxwm scratchpads are created from the focused window
+# (create), then shown/hidden (toggle). Luke's original keys toggle;
+# ctrl variants create; alt variants spawn Luke's exact dwm commands.
+scratchpad : mod + shift + Return : toggle 1
+scratchpad : mod + ctrl + Return : create 1
+bind : mod + alt + Return : "st -n spterm -g 120x34"
+scratchpad : mod + apostrophe : toggle 2
+scratchpad : mod + ctrl + apostrophe : create 2
+bind : mod + alt + apostrophe : "st -n spcalc -f monospace:size=16 -g 50x20 -e bc -lq"
+
+# Terminal.
+bind : mod + Return : "st"
+
+# Other programs.
+bind : mod + c : "st -e profanity"
+bind : mod + b : "sh -c 'pkill -x sxbar || sxbar &'"
+bind : mod + n : "st -e nvim -c VimwikiIndex"
+bind : mod + shift + n : "st -e newsboat"
+bind : mod + m : "st -e ncmpcpp"
+bind : mod + shift + m : "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+
+# Monitors (dwm focusmon/tagmon).
+call : mod + Left : focus_prev_mon
+call : mod + Right : focus_next_mon
+call : mod + shift + Left : move_prev_mon
+call : mod + shift + Right : move_next_mon
+
+# Snippet typer.
+bind : mod + Insert : "sh -c 's=$(grep -v ^# ~/.local/share/larbs/snippets | dmenu -i -l 50); xdotool type ${s%% *}'"
+
+# Function keys.
+bind : mod + F1 : "sh -c 'groff -mom /usr/local/share/debrice/larbs.mom -Tpdf | zathura -'"
+bind : mod + F2 : "tutorialvids"
+bind : mod + F3 : "displayselect"
+bind : mod + F4 : "st -e pulsemixer"
+# dwm's xrdb-refresh analog: reload sxwmrc.
+call : mod + F5 : reload_config
+bind : mod + F6 : "torwrap"
+bind : mod + F7 : "td-toggle"
+bind : mod + F8 : "mailsync"
+bind : mod + F9 : "mounter"
+bind : mod + F10 : "unmounter"
+bind : mod + F11 : "sh -c 'mpv --untimed --no-cache --no-osc --no-input-default-bindings --profile=low-latency --input-conf=/dev/null --title=webcam $(ls /dev/video[0,2,4,6,8] | tail -n 1)'"
+bind : mod + F12 : "remaps"
+
+# mod+space (zoom) has no promote-to-master in sxwm — DIFFERENCES.md.
+
+# Screenshots and recording.
+bind : Print : "sh -c 'maim pic-full-$(date +%y%m%d-%H%M-%S).png'"
+bind : shift + Print : "maimpick"
+bind : mod + Print : "dmenurecord"
+bind : mod + shift + Print : "dmenurecord kill"
+bind : mod + Delete : "dmenurecord kill"
+bind : mod + Scroll_Lock : "sh -c 'killall screenkey || screenkey &'"
+
+# Media and hardware keys.
+bind : XF86AudioMute : "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+bind : XF86AudioRaiseVolume : "sh -c 'wpctl set-volume @DEFAULT_AUDIO_SINK@ 0%- && wpctl set-volume @DEFAULT_AUDIO_SINK@ 3%+'"
+bind : XF86AudioLowerVolume : "sh -c 'wpctl set-volume @DEFAULT_AUDIO_SINK@ 0%+ && wpctl set-volume @DEFAULT_AUDIO_SINK@ 3%-'"
+bind : XF86AudioPrev : "mpc prev"
+bind : XF86AudioNext : "mpc next"
+bind : XF86AudioPause : "mpc pause"
+bind : XF86AudioPlay : "mpc play"
+bind : XF86AudioStop : "mpc stop"
+bind : XF86AudioRewind : "mpc seek -10"
+bind : XF86AudioForward : "mpc seek +10"
+bind : XF86AudioMedia : "st -e ncmpcpp"
+bind : XF86AudioMicMute : "pactl set-source-mute @DEFAULT_SOURCE@ toggle"
+bind : XF86Calculator : "st -e bc -l"
+bind : XF86Sleep : "systemctl suspend"
+bind : XF86WWW : "brave"
+bind : XF86DOS : "st"
+bind : XF86ScreenSaver : "sh -c 'slock & xset dpms force off; mpc pause; pauseallmpv'"
+bind : XF86TaskPane : "st -e htop"
+bind : XF86Mail : "st -e neomutt"
+bind : XF86MyComputer : "st -e lfub /"
+bind : XF86Launch1 : "xset dpms force off"
+bind : XF86TouchpadToggle : "sh -c '(synclient | grep TouchpadOff.*1 && synclient TouchpadOff=0) || synclient TouchpadOff=1'"
+bind : XF86TouchpadOff : "synclient TouchpadOff=1"
+bind : XF86TouchpadOn : "synclient TouchpadOff=0"
+bind : XF86MonBrightnessUp : "xbacklight -inc 15"
+bind : XF86MonBrightnessDown : "xbacklight -dec 15"
