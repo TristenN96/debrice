@@ -5,13 +5,43 @@
 # replacing dwm (and dwmblocks), Brave replacing Librewolf, and full TeX Live.
 # License: GNU GPLv3 (like LARBS itself)
 
+# Harden invocation: if executed via `sh` (dash on Debian), re-exec with bash.
+if [ -z "${BASH_VERSION:-}" ]; then
+	if [ -f "$0" ]; then
+		exec bash "$0" "$@"
+	fi
+	printf '%s\n' "debrice.sh requires bash. Re-run it as: bash debrice.sh" >&2
+	exit 1
+fi
+
 set -u
+
+# Resolve the script's own location — never the caller's cwd — and load the
+# function libraries from it when running from a full checkout. When
+# debrice.sh was curl'd standalone there is no lib/ next to it; in that case
+# bootstraprepo() clones the repo below and sources the libraries from the
+# clone instead. Either way every helper (apt_install, add_brave_repo,
+# gitmakeinstall, scriptinstall, progs_each, deploy_dotfiles,
+# install_cheatsheet) is defined before its first call.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/lib/packages.sh" ]; then
+	# shellcheck source=lib/packages.sh
+	. "$SCRIPT_DIR/lib/packages.sh"
+	# shellcheck source=lib/builds.sh
+	. "$SCRIPT_DIR/lib/builds.sh"
+	# shellcheck source=lib/dotfiles.sh
+	. "$SCRIPT_DIR/lib/dotfiles.sh"
+fi
 
 ### OPTIONS AND VARIABLES ###
 
-repourl="https://github.com/debrice/debrice.git"
+repourl="https://github.com/TristenN96/debrice.git"
 repobranch="master"
-export TERM=ansi
+
+# Non-interactive mode: skip every prompt. Enabled by --yes/-y or by setting
+# DEBRICE_ASSUME_YES=1 in the environment. Credentials may then be supplied
+# via DEBRICE_USER and DEBRICE_PASSWORD.
+: "${DEBRICE_ASSUME_YES:=0}"
 
 rssurls="https://lukesmith.xyz/rss.xml
 https://videos.lukesmith.xyz/feeds/videos.xml?videoChannelId=2 \"~Luke Smith (Videos)\"
@@ -27,49 +57,88 @@ https://github.com/LukeSmithxyz/voidrice/commits/master.atom \"~LARBS dotfiles\"
 ### FUNCTIONS ###
 
 error() {
-	# Log to stderr and exit with failure.
-	printf "%s\n" "$1" >&2
+	# Report the actual failure, then exit. Headline: the call-site line and
+	# a message naming the command that failed. Commands that can call
+	# error() leave their stderr unsuppressed, so the real error text sits
+	# directly above this line; any generic hint trails the specifics.
+	printf 'FATAL: debrice.sh:%s: %s\n' "${BASH_LINENO[0]:-?}" "$1" >&2
 	exit 1
 }
 
-welcomemsg() {
-	whiptail --title "Welcome!" \
-		--msgbox "Welcome to debrice!\\n\\nThis script will automatically install a fully-featured Linux desktop: the LARBS setup by Luke Smith, ported to Debian 13 (Trixie), with the sxwm window manager, the Brave browser and a complete TeX Live installation.\\n\\nEnjoy!" 12 70
+assume_yes() {
+	[ "$DEBRICE_ASSUME_YES" = 1 ]
+}
 
-	whiptail --title "Important Note!" --yes-button "All ready!" \
-		--no-button "Return..." \
-		--yesno "Be sure the computer you are using has a working internet connection and is running Debian 13 (Trixie).\\n\\nIf it does not, the installation of some programs might fail." 9 70
+say() {
+	# Progress/status message (replaces the old whiptail infoboxes).
+	printf '==> %s\n' "$*"
+}
+
+confirm() {
+	# confirm QUESTION — plain, always-visible y/N prompt that works on a raw
+	# Linux console TTY. Returns 0 on y/yes (case-insensitive), 1 on anything
+	# else. Auto-accepts in assume-yes mode.
+	assume_yes && return 0
+	local ans
+	printf '%s [y/N] ' "$1"
+	read -r ans || return 1
+	case "$ans" in
+	[yY] | [yY][eE][sS]) return 0 ;;
+	*) return 1 ;;
+	esac
+}
+
+welcomemsg() {
+	printf '\n%s\n\n' "Welcome to debrice!"
+	printf '%s\n' \
+		"This script will automatically install a fully-featured Linux desktop:" \
+		"the LARBS setup by Luke Smith, ported to Debian 13 (Trixie), with the" \
+		"sxwm window manager, the Brave browser and a complete TeX Live installation." \
+		""
+	confirm "Be sure this computer has a working internet connection and is running Debian 13 (Trixie). Continue?"
 }
 
 getuserandpass() {
-	# Prompts user for new username and password.
-	name=$(whiptail --inputbox "First, please enter a name for the user account." 10 60 3>&1 1>&2 2>&3 3>&1) || exit 1
-	while ! echo "$name" | grep -q "^[a-z_][a-z0-9_-]*$"; do
-		name=$(whiptail --nocancel --inputbox "Username not valid. Give a username beginning with a letter, with only lowercase letters, - or _." 10 60 3>&1 1>&2 2>&3 3>&1)
-	done
-	pass1=$(whiptail --nocancel --passwordbox "Enter a password for that user." 10 60 3>&1 1>&2 2>&3 3>&1)
-	pass2=$(whiptail --nocancel --passwordbox "Retype password." 10 60 3>&1 1>&2 2>&3 3>&1)
-	while ! [ "$pass1" = "$pass2" ]; do
-		unset pass2
-		pass1=$(whiptail --nocancel --passwordbox "Passwords do not match.\\n\\nEnter password again." 10 60 3>&1 1>&2 2>&3 3>&1)
-		pass2=$(whiptail --nocancel --passwordbox "Retype password." 10 60 3>&1 1>&2 2>&3 3>&1)
-	done
+	# Prompts user for new username and password. Non-interactive runs may
+	# supply both via DEBRICE_USER and DEBRICE_PASSWORD.
+	if [ -n "${DEBRICE_USER:-}" ] && [ -n "${DEBRICE_PASSWORD:-}" ]; then
+		name="$DEBRICE_USER"
+		pass1="$DEBRICE_PASSWORD"
+	else
+		[ -t 0 ] ||
+			error "Cannot prompt for a username: stdin is not a TTY. Set DEBRICE_USER and DEBRICE_PASSWORD (together with DEBRICE_ASSUME_YES=1) or run interactively."
+		printf 'First, please enter a name for the user account: '
+		read -r name || exit 1
+		while ! echo "$name" | grep -q "^[a-z_][a-z0-9_-]*$"; do
+			printf 'Username not valid. Give a username beginning with a letter, with only lowercase letters, - or _: '
+			read -r name || exit 1
+		done
+		printf 'Enter a password for that user: '
+		read -rs pass1 || exit 1
+		printf '\nRetype password: '
+		read -rs pass2 || exit 1
+		printf '\n'
+		while ! [ "$pass1" = "$pass2" ]; do
+			unset pass2
+			printf 'Passwords do not match. Enter password again: '
+			read -rs pass1 || exit 1
+			printf '\nRetype password: '
+			read -rs pass2 || exit 1
+			printf '\n'
+		done
+	fi
+	echo "$name" | grep -q "^[a-z_][a-z0-9_-]*$" ||
+		error "Invalid username: $name"
 }
 
 usercheck() {
 	! { id -u "$name" >/dev/null 2>&1; } ||
-		whiptail --title "WARNING" --yes-button "CONTINUE" \
-			--no-button "No wait..." \
-			--yesno "The user \`$name\` already exists on this system. debrice can install for a user already existing, but it will OVERWRITE any conflicting settings/dotfiles on the user account (they are backed up to ~/.config/debrice-backup-<timestamp> first).\\n\\ndebrice will NOT overwrite your user files, documents, videos, etc., so don't worry about that, but only click <CONTINUE> if you don't mind your settings being overwritten.\\n\\nNote also that debrice will change $name's password to the one you just gave." 15 75
+		confirm "WARNING: the user \`$name\` already exists. Conflicting settings/dotfiles will be OVERWRITTEN (they are backed up to ~/.config/debrice-backup-<timestamp> first) and $name's password will be changed. Continue?"
 }
 
 preinstallmsg() {
-	whiptail --title "Let's get this party started!" --yes-button "Let's go!" \
-		--no-button "No, nevermind!" \
-		--yesno "The rest of the installation will now be totally automated, so you can sit back and relax.\\n\\nIt will take some time (TeX Live alone is large), but when done, you can relax even more with your complete system.\\n\\nNow just press <Let's go!> and the system will begin installation!" 13 60 || {
-		clear
+	confirm "The rest of the installation will now be totally automated (TeX Live alone is large, so it will take some time). Begin installation now?" ||
 		exit 1
-	}
 }
 
 distrocheck() {
@@ -77,9 +146,7 @@ distrocheck() {
 	[ "${ID:-}" = "debian" ] ||
 		error "debrice targets Debian 13 (Trixie). This system reports ID=${ID:-unknown}. Aborting."
 	[ "${VERSION_ID:-}" = "13" ] ||
-		whiptail --title "Untested Debian version" --yes-button "Continue anyway" \
-			--no-button "Abort" \
-			--yesno "This system reports Debian ${VERSION_ID:-unknown}; debrice is tested on Debian 13 (Trixie) only." 9 65 ||
+		confirm "This system reports Debian ${VERSION_ID:-unknown}; debrice is tested on Debian 13 (Trixie) only. Continue anyway?" ||
 		error "Aborted: not Debian 13."
 }
 
@@ -94,7 +161,7 @@ bootstraprepo() {
 		DEBRICE_DIR="/tmp/debrice-repo"
 		git -C "$DEBRICE_DIR" pull --force >/dev/null 2>&1 || true
 	else
-		whiptail --infobox "Downloading the debrice repository..." 7 50
+		say "Downloading the debrice repository..."
 		git clone --depth 1 --single-branch --no-tags -q \
 			-b "$repobranch" "$repourl" /tmp/debrice-repo ||
 			error "Could not clone $repourl — check your internet connection."
@@ -114,7 +181,7 @@ bootstraprepo() {
 
 adduserandpass() {
 	# Adds user `$name` with password $pass1.
-	whiptail --infobox "Adding user \"$name\"..." 7 50
+	say "Adding user \"$name\"..."
 	useradd -m -G sudo -s /bin/zsh "$name" >/dev/null 2>&1 || {
 		usermod -a -G sudo "$name"
 		mkdir -p "/home/$name"
@@ -129,21 +196,20 @@ adduserandpass() {
 
 maininstall() {
 	# Installs all needed programs from the main repos.
-	whiptail --title "debrice Installation" --infobox "Installing \`$1\` ($n of $total). $1 $2" 9 70
+	say "Installing \`$1\` ($n of $total). $2"
 	apt_install "$1"
 }
 
 repoinstall() {
 	# Installs a program from an external apt repository (added beforehand).
-	whiptail --title "debrice Installation" --infobox "Installing \`$1\` ($n of $total) from an external repository. $1 $2" 9 70
+	say "Installing \`$1\` ($n of $total) from an external repository. $2"
 	apt_install "$1"
 }
 
 gitinstall() {
 	local prog
 	prog="$(basename "$1" .git)"
-	whiptail --title "debrice Installation" \
-		--infobox "Installing \`$prog\` ($n of $total) via \`git\` and \`make\`. $prog $2" 8 70
+	say "Installing \`$prog\` ($n of $total) via \`git\` and \`make\`. $2"
 	gitmakeinstall "$1"
 }
 
@@ -157,8 +223,7 @@ installationloop() {
 		R) repoinstall "$program" "$comment" ;;
 		G) gitinstall "$program" "$comment" ;;
 		S)
-			whiptail --title "debrice Installation" \
-				--infobox "Installing \`$(basename "$program")\` ($n of $total) as a script. $comment" 9 70
+			say "Installing \`$(basename "$program")\` ($n of $total) as a script. $comment"
 			scriptinstall "$(basename "$program")" "$program"
 			;;
 		*) maininstall "$program" "$comment" ;;
@@ -169,7 +234,7 @@ installationloop() {
 
 vimplugininstall() {
 	# Installs vim plugins.
-	whiptail --infobox "Installing neovim plugins..." 7 60
+	say "Installing neovim plugins..."
 	mkdir -p "/home/$name/.config/nvim/autoload"
 	curl -fsSLo "/home/$name/.config/nvim/autoload/plug.vim" \
 		"https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim"
@@ -178,21 +243,49 @@ vimplugininstall() {
 }
 
 finalize() {
-	whiptail --title "All done!" \
-		--msgbox "Congrats! Provided there were no hidden errors, the script completed successfully and all the programs and configuration files should be in place.\\n\\nTo run the new graphical environment, log out and log back in as your new user, then run the command \"startx\" to start the graphical environment (it will start automatically in tty1).\\n\\n.t Luke (and the sxwm port by debrice)" 13 80
+	printf '\n%s\n\n' "All done!"
+	printf '%s\n' \
+		"Congrats! Provided there were no hidden errors, the script completed" \
+		"successfully and all the programs and configuration files should be in place." \
+		"" \
+		"To run the new graphical environment, log out and log back in as your new" \
+		"user, then run the command \"startx\" to start the graphical environment" \
+		"(it will start automatically in tty1)." \
+		"" \
+		".t Luke (and the sxwm port by debrice)"
 }
 
 ### THE ACTUAL SCRIPT ###
 
-# Check if user is root on Debian. Install the dialog prerequisites.
+# Parse options.
+for arg in "$@"; do
+	case "$arg" in
+	-y | --yes) DEBRICE_ASSUME_YES=1 ;;
+	*) error "Unknown option: $arg (supported: --yes)" ;;
+	esac
+done
+
+# Check if user is root.
 [ "$(id -u)" = 0 ] || error "Please run debrice.sh as the root user."
 
-apt-get update >/dev/null 2>&1 ||
-	error "Could not refresh apt. Check your internet connection and sources."
+# Never hang waiting for input that cannot arrive: without --yes, the script
+# is interactive and needs a TTY on stdin.
+if ! assume_yes && [ ! -t 0 ]; then
+	error "debrice.sh is interactive but stdin is not a TTY. Re-run with DEBRICE_ASSUME_YES=1 or 'bash debrice.sh --yes' to skip all prompts (set DEBRICE_USER and DEBRICE_PASSWORD as well)."
+fi
 
-for x in whiptail curl ca-certificates git gnupg zsh; do
-	apt_install "$x" ||
-		error "Are you sure you're running this as the root user, are on Debian 13 and have an internet connection?"
+# stderr stays visible so a failure shows apt's own diagnosis above the
+# FATAL line — never silently swap it for a generic guess.
+apt-get update >/dev/null ||
+	error "command failed: apt-get update (see apt output above). Check your internet connection and apt sources."
+
+# Install the script prerequisites. Plain apt-get on purpose: this phase must
+# also work on a standalone curl run, where the function libraries only exist
+# after bootstraprepo() clones the repo.
+say "Installing script prerequisites..."
+for x in curl ca-certificates git gnupg zsh; do
+	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$x" >/dev/null ||
+		error "command failed: apt-get install -y --no-install-recommends $x (see apt output above). Generic hint: run as root, on Debian 13, with a working internet connection."
 done
 
 distrocheck
@@ -209,13 +302,19 @@ usercheck || error "User exited."
 # Last chance for user to back out before install.
 preinstallmsg || error "User exited."
 
+# Test/CI hook: stop after the interactive preflight phase.
+if [ "${DEBRICE_PREFLIGHT_ONLY:-0}" = 1 ]; then
+	say "Preflight checks passed; stopping before installation (DEBRICE_PREFLIGHT_ONLY=1)."
+	exit 0
+fi
+
 ### The rest of the script requires no user input.
 
 # Obtain progs.csv, lib/, dotfiles/ and static/ (clone if curl'd standalone).
 bootstraprepo
 
 # Add external apt repositories (Brave). Idempotent.
-whiptail --infobox "Adding the Brave browser repository..." 7 50
+say "Adding the Brave browser repository..."
 add_brave_repo || error "Could not add the Brave repository."
 
 adduserandpass || error "Error adding username and/or password."

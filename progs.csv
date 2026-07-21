@@ -4,7 +4,7 @@
 ,xinit,"starts the graphical server."
 ,xauth,"authenticates X sessions for startx."
 ,x11-xserver-utils,"utility for configuring and adjusting the X server (xset)."
-,whiptail,"draws the dialog boxes used by this installer."
+,whiptail,"provides dialog boxes for shell scripts (used by some ~/.local/bin scripts)."
 ,polkitd,"manages user policies."
 ,fonts-linuxlibertine,"provides the serif font family for documents."
 ,fonts-font-awesome,"provides extended glyph support."

@@ -12,7 +12,7 @@ builds and Luke's `~/.local/bin` scripts are all here.
 On a fresh Debian 13 netinstall (as root, with internet):
 
 ```sh
-curl -LO https://raw.githubusercontent.com/debrice/debrice/master/debrice.sh && bash debrice.sh
+curl -LO https://raw.githubusercontent.com/TristenN96/debrice/master/debrice.sh && bash debrice.sh
 ```
 
 The script asks for a username and password, creates the user (sudo group),
@@ -20,6 +20,16 @@ and installs everything unattended. When it finishes, log in as that user on
 tty1 and the graphical session starts via `startx` automatically. Re-running
 the script is safe: apt sources/keys are never duplicated, and any config it
 would overwrite is first backed up to `~/.config/debrice-backup-<timestamp>/`.
+
+Always invoke it with `bash` (never `sh`; if launched via `sh` it re-execs
+itself with bash). For unattended runs, skip all prompts with:
+
+```sh
+DEBRICE_ASSUME_YES=1 DEBRICE_USER=myname DEBRICE_PASSWORD=mypass bash debrice.sh --yes
+```
+
+If stdin is not a TTY and `--yes` was not given, the script refuses to run
+instead of hanging on an invisible prompt.
 
 ## What you get
 
@@ -207,14 +217,17 @@ tests/docker-test.sh    debian:trixie container tests (static local fallback)
 ## Testing
 
 ```sh
-tests/docker-test.sh all        # or: lint packages builds binds idempotency xephyr parsecheck
+tests/docker-test.sh all        # or: lint preflight runtime packages builds binds idempotency xephyr parsecheck
 scripts/check-binds.sh          # keybinding coverage alone
 ```
 
 With working docker, every stage runs in a `debian:trixie` container:
-shellcheck lint, package resolution via apt-cache for every `,`/`R` entry,
-compilation of st/dmenu/slock/sxwm/sxbar with only the declared build deps,
-an idempotency run, and an Xephyr smoke test of sxwm + config reload.
+shellcheck lint, non-interactive preflight, a runtime stage that executes
+`debrice.sh` itself through the prerequisite-install phase (failing on any
+"command not found" or nonzero exit), package resolution via apt-cache for
+every `,`/`R` entry, compilation of st/dmenu/slock/sxwm/sxbar with only the
+declared build deps, an idempotency run, and an Xvfb smoke test of sxwm +
+config reload.
 Without docker the script degrades to static local verification (Trixie and
 Brave package indices, host builds, a fake-HOME deploy, and config
 validation with sxwm's/sxbar's own parsers) and says so loudly.

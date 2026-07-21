@@ -218,3 +218,37 @@ single layout + monocle/floating, Mod+F5 reload, Brave, sxbar without click
 actions, no sticky/zoom/multi-tag) and the Configuration/FAQ sections point
 at sxwmrc/sxbarc instead of dwm's config.h. Verified renderable with
 groff -mom -Tpdf on the host.
+
+## D25 — Real repo URL; libs sourced at top; error() reports the real failure
+The placeholder from D24 is resolved: repourl and the README curl line now
+point at https://github.com/TristenN96/debrice(.git).
+
+Bare-metal run of the committed script died at the prereq loop with
+`apt_install: command not found` — lib/packages.sh was only sourced by
+bootstraprepo(), i.e. after first use. Fix: debrice.sh now sources lib/*.sh
+near the top via SCRIPT_DIR (the script's own directory, never the cwd).
+The sourcing is conditional (`[ -f lib/packages.sh ]`) specifically to
+preserve the standalone-curl path: a curl'd script has no lib/ next to it
+and still gets the libraries from bootstraprepo()'s clone. Sourcing twice
+(checkout case) is idempotent — only function definitions and `: "${X:=...}"`
+defaults.
+
+error() used to let callers swap any failure for the guess "root? Debian 13?
+internet?" — which masked the sourcing bug for days. It now headlines
+`FATAL: debrice.sh:<line>: <message naming the failed command>`, and
+error-guarded commands keep stderr unsuppressed so apt's own diagnosis sits
+above the FATAL line; the generic hint survives only as a trailing sentence.
+
+Lint never executes code paths, so this class of bug was invisible to every
+existing stage. tests/docker-test.sh gained a `runtime` stage that runs
+debrice.sh for real in debian:trixie (DEBRICE_ASSUME_YES=1,
+DEBRICE_PREFLIGHT_ONLY=1) and fails on any "command not found" in the output
+or any nonzero exit.
+
+The same first real docker run also exposed that the X smoke stage could
+never have worked in a container: Xephyr renders into a window on a host X
+server ("Xephyr cannot open host display"), so it needs a mounted host
+session. The docker stage now uses Xvfb (pure framebuffer, no host
+requirements) for the same sxwm launch + super+F5 reload assertions; the
+stage keeps its `xephyr` CLI name. D22's "full suite green" had come from
+the local fallback, where the stage silently degraded to parsecheck.

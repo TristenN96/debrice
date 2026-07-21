@@ -4,7 +4,7 @@
 # Fallback mode: if docker is unusable in this environment, stages degrade to
 # static verification (Trixie package indices, host-side builds, local
 # idempotency in a throwaway HOME) and say so loudly.
-# Usage: tests/docker-test.sh [all|lint|packages|builds|binds|idempotency|xephyr]
+# Usage: tests/docker-test.sh [all|lint|preflight|runtime|packages|builds|binds|idempotency|xephyr]
 set -u
 
 IMAGE="debian:trixie"
@@ -26,9 +26,11 @@ else
 fi
 
 # run_container: pipe a bash script into a debian:trixie container with the
-# repo mounted read-only at /debrice.
+# repo mounted read-only at /debrice. (-i is required: without it the
+# container's stdin is closed and `bash -s` exits 0 immediately, making
+# every stage a silent no-op.)
 run_container() {
-	docker run --rm -v "$REPO:/debrice:ro" "$IMAGE" bash -s
+	docker run --rm -i -v "$REPO:/debrice:ro" "$IMAGE" bash -s
 }
 
 ###############################################################################
@@ -73,6 +75,78 @@ EOF
 	[ "${#files[@]}" -gt 0 ] || die "no scripts to lint yet"
 	"$sc" -x "${files[@]}" || die "shellcheck failed"
 	echo "LINT OK (local, ${#files[@]} files)"
+}
+
+###############################################################################
+# preflight
+###############################################################################
+stage_preflight() {
+	note "Stage: non-interactive preflight of debrice.sh [$MODE]"
+	if [ "$MODE" != docker ]; then
+		note "needs root + apt in a disposable system — docker-only, skipping"
+		return 0
+	fi
+	run_container <<'EOF'
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+# 1. No TTY and no --yes: must refuse fast with instructions, not hang.
+if timeout 60 bash /debrice/debrice.sh </dev/null >/tmp/refuse.log 2>&1; then
+	echo "EXPECTED REFUSAL WITHOUT TTY, GOT SUCCESS"; exit 1
+fi
+grep -q "DEBRICE_ASSUME_YES" /tmp/refuse.log \
+	|| { echo "REFUSAL DID NOT PRINT INSTRUCTIONS"; cat /tmp/refuse.log; exit 1; }
+
+# 2. --yes preflight: early phases run end-to-end with no TTY.
+DEBRICE_PREFLIGHT_ONLY=1 DEBRICE_USER=debricetest DEBRICE_PASSWORD=testpass123 \
+	timeout 600 bash /debrice/debrice.sh --yes </dev/null >/tmp/preflight.log 2>&1 \
+	|| { echo "PREFLIGHT RUN FAILED"; cat /tmp/preflight.log; exit 1; }
+grep -q "Preflight checks passed" /tmp/preflight.log \
+	|| { echo "PREFLIGHT MARKER MISSING"; cat /tmp/preflight.log; exit 1; }
+
+# 3. Env-var form works too, and `sh` invocation re-execs bash.
+DEBRICE_ASSUME_YES=1 DEBRICE_PREFLIGHT_ONLY=1 \
+	DEBRICE_USER=debricetest DEBRICE_PASSWORD=testpass123 \
+	timeout 600 sh /debrice/debrice.sh </dev/null >>/tmp/preflight.log 2>&1 \
+	|| { echo "DASH RE-EXEC PREFLIGHT FAILED"; cat /tmp/preflight.log; exit 1; }
+
+echo "PREFLIGHT OK"
+EOF
+}
+
+###############################################################################
+# runtime — execute debrice.sh for real through the prereq-install phase
+###############################################################################
+stage_runtime() {
+	note "Stage: runtime execution of debrice.sh (prereq phase) [$MODE]"
+	if [ "$MODE" != docker ]; then
+		note "needs root + apt in a disposable system — docker-only, skipping"
+		return 0
+	fi
+	run_container <<'EOF'
+set -u
+export DEBIAN_FRONTEND=noninteractive
+
+# Lint and package-resolution checks never execute debrice.sh's own code
+# paths in order — only a real run surfaces "command not found" (unsourced
+# libraries, typos in function names) and ordering bugs. Run non-interactively
+# through at least the prereq-install phase (DEBRICE_PREFLIGHT_ONLY stops
+# right after it, before the heavyweight installation loop).
+rc=0
+DEBRICE_ASSUME_YES=1 DEBRICE_PREFLIGHT_ONLY=1 \
+	DEBRICE_USER=debricetest DEBRICE_PASSWORD=testpass123 \
+	timeout 600 bash /debrice/debrice.sh </dev/null >/tmp/runtime.log 2>&1 || rc=$?
+cat /tmp/runtime.log
+[ "$rc" -eq 0 ] \
+	|| { echo "RUNTIME FAILED: debrice.sh exited with status $rc"; exit 1; }
+if grep -q "command not found" /tmp/runtime.log; then
+	echo "RUNTIME FAILED: 'command not found' in debrice.sh output"
+	exit 1
+fi
+grep -q "Preflight checks passed" /tmp/runtime.log \
+	|| { echo "RUNTIME FAILED: prereq-install phase did not complete"; exit 1; }
+echo "RUNTIME OK"
+EOF
 }
 
 ###############################################################################
@@ -299,7 +373,7 @@ EOF
 # xephyr
 ###############################################################################
 stage_xephyr() {
-	note "Stage: Xephyr smoke test of sxwm [$MODE]"
+	note "Stage: X smoke test of sxwm (Xvfb) [$MODE]"
 	if [ ! -f "$REPO/static/sxwmrc" ]; then
 		note "static/sxwmrc not present yet — skipping"
 		return 0
@@ -308,8 +382,11 @@ stage_xephyr() {
 		run_container <<'EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
+# Xvfb, not Xephyr: Xephyr renders into a window on a host X server, which a
+# container does not have ("Xephyr cannot open host display"). Xvfb is a
+# framebuffer server and needs nothing from the host.
 apt-get update -qq
-apt-get install -y -qq git build-essential pkg-config xserver-xephyr x11-utils \
+apt-get install -y -qq git build-essential pkg-config xvfb x11-utils \
 	xdotool libx11-dev libxinerama-dev libxcursor-dev >/dev/null
 git clone --depth 1 -q https://github.com/uint23/sxwm.git /tmp/sxwm
 make -C /tmp/sxwm >/dev/null
@@ -317,7 +394,7 @@ make -C /tmp/sxwm install PREFIX=/usr/local >/dev/null
 mkdir -p /root/.config
 cp /debrice/static/sxwmrc /root/.config/sxwmrc
 export DISPLAY=:99
-Xephyr :99 -screen 1280x720 >/dev/null 2>&1 &
+Xvfb :99 -screen 0 1280x720x24 >/dev/null 2>&1 &
 sleep 2
 sxwm >/tmp/sxwm.log 2>&1 &
 sleep 3
@@ -327,7 +404,7 @@ pidof sxwm >/dev/null || { echo "sxwm NOT RUNNING"; cat /tmp/sxwm.log; exit 1; }
 grep -q "using configuration file" /tmp/sxwm.log \
 	|| { echo "sxwm DID NOT PARSE CONFIG"; cat /tmp/sxwm.log; exit 1; }
 kill %2 %1 2>/dev/null || true
-echo "XEPHYR SMOKE OK"
+echo "X SMOKE OK"
 EOF
 		return
 	fi
@@ -438,6 +515,8 @@ EOF
 
 case "$STAGE" in
 lint) stage_lint ;;
+preflight) stage_preflight ;;
+runtime) stage_runtime ;;
 packages) stage_packages ;;
 builds) stage_builds ;;
 binds) stage_binds ;;
@@ -445,7 +524,7 @@ idempotency) stage_idempotency ;;
 xephyr) stage_xephyr ;;
 parsecheck) stage_parsecheck ;;
 all)
-	stage_lint && stage_packages && stage_builds && stage_binds && stage_idempotency && stage_xephyr
+	stage_lint && stage_preflight && stage_runtime && stage_packages && stage_builds && stage_binds && stage_idempotency && stage_xephyr
 	;;
-*) die "unknown stage: $STAGE (want: all|lint|packages|builds|binds|idempotency|xephyr|parsecheck)" ;;
+*) die "unknown stage: $STAGE (want: all|lint|preflight|runtime|packages|builds|binds|idempotency|xephyr|parsecheck)" ;;
 esac
