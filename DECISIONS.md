@@ -153,11 +153,37 @@ can_swallow: "st"; can_be_swallowed: "mpv", "nsxiv", "sxiv", "zathura"
 should_float: "floatterm", "spterm", "spcalc" (dwm rule parity for the
 floating terminal instances).
 
-## D20 — Docker-based verification
-Docker is available on the build host; tests/docker-test.sh runs everything in
-debian:trixie containers (package resolution, git builds, lint, idempotency,
-Xephyr smoke test where possible). shellcheck is not installed on the host, so
-lint also runs inside the container. Nothing is installed host-side.
+## D20 — Docker-based verification with automatic local fallback
+Docker is installed on the build host but unusable (user not in docker group,
+sudo requires a password, no rootless socket). tests/docker-test.sh therefore
+auto-detects: when `docker info` fails it degrades each stage to static local
+verification and says so loudly —
+- package resolution greps downloaded Trixie main + Brave stable Packages
+  indices (in /tmp/debrice-test-cache) instead of apt-cache in a container;
+- git builds compile on the host (Arch, gcc 15) into a throwaway PREFIX
+  instead of a Trixie container — verifies the code and the dependency set,
+  not the exact Trixie toolchain;
+- idempotency runs in a fake HOME with overridable repo paths;
+- Xephyr smoke test runs on the host's Xephyr if present.
+On any machine with working docker the same script runs the real
+debian:trixie container stages unchanged. shellcheck is fetched as a static
+binary to /tmp since the host lacks it.
+
+## D23 — Three package swaps after Trixie index verification
+- fonts-libertinus: does not exist in Trixie (spec anticipated this). Using
+  fonts-linuxlibertine (the Libertine family libertinus forked from); true
+  libertinus also arrives with texlive-full, whose Debian packaging registers
+  texmf fonts with fontconfig via 09-texlive.conf.
+- ueberzugpp: not in Trixie. Spec says G-build if missing, but voidrice's
+  lfub/scope call the classic `ueberzug` CLI (`ueberzug layer -p json`), which
+  Trixie ships as the `ueberzug` package. Chose apt ueberzug over a heavy
+  cmake/opencv-adjacent ueberzugpp source build: zero functional difference
+  for the only consumer. Recorded in DIFFERENCES.md.
+- zathura-pdf-mupdf: not in Trixie (Debian ships only the poppler plugin).
+  Mapped to zathura-pdf-poppler; PDF support preserved.
+
+All other `,` entries verified present in Trixie main (68,755-package index),
+and brave-browser verified present in Brave's stable repo index (R tag).
 
 ## D21 — mutt-wizard G-build with Debian deps
 `G,https://github.com/LukeSmithxyz/mutt-wizard` plus apt deps neomutt, isync,
