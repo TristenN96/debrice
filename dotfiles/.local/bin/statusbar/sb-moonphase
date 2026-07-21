@@ -1,0 +1,55 @@
+#!/bin/sh
+
+# Shows the current moon phase.
+
+moonfile="${XDG_DATA_HOME:-$HOME/.local/share}/moonphase"
+
+checkmoon() {
+	[ "$(stat -c %y "$moonfile" 2>/dev/null |
+		cut -d' ' -f1)" = "$(date '+%Y-%m-%d')" ]
+}
+
+getmoon() { { grep -q -m1 '^up$' /sys/class/net/w*/operstate || grep -q -m1 '^up$' /sys/class/net/e*/operstate; } &&
+	curl -sf "wttr.in/?format=%m" --output "$moonfile" && touch "$moonfile"
+}
+
+checkmoon ||
+	( flock -n 9 &&
+		( tries=0; while [ $tries -ne 100 ]; do
+			# shellcheck disable=SC2015
+			getmoon && break ||
+				{ tries=$((tries+1)); sleep .1; }
+		done
+		! checkmoon &&
+			until getmoon; do sleep 60; done
+		) &
+	echo; exit ) 9>"${XDG_RUNTIME_DIR}/sb-moonphase.lock"
+
+icon="$(cat "$moonfile")"
+
+case "$icon" in
+	🌑) name="New" ;;
+	🌒) name="Waxing Crescent" ;;
+	🌓) name="First Quarter" ;;
+	🌔) name="Waxing Gibbous" ;;
+	🌕) name="Full" ;;
+	🌖) name="Waning Gibbous" ;;
+	🌗) name="Last Quarter" ;;
+	🌘) name="Waning Crescent" ;;
+	*) exit 1 ;;
+esac
+
+echo "${icon-?}"
+
+case $BLOCK_BUTTON in
+	3) notify-send "🌜 Moon phase module" "Displays current moon phase.
+- 🌑: New
+- 🌒: Waxing Crescent
+- 🌓: First Quarter
+- 🌔: Waxing Gibbous
+- 🌕: Full
+- 🌖: Waning Gibbous
+- 🌗: Last Quarter
+- 🌘: Waning Crescent" ;;
+	6) setsid -f "$TERMINAL" -e "$EDITOR" "$0" ;;
+esac

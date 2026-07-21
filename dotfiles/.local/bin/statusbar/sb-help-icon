@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# The clickable help menu. Middle click to reload the wm config.
+
+# If sxwm is running, use debrice's readme and reload key.
+pidof sxwm >/dev/null &&
+	READMEFILE=/usr/local/share/debrice/larbs.mom
+	restartwm() { xdotool key super+F5 ;} ||
+		restartwm() { : ;}
+
+case $BLOCK_BUTTON in
+	1) groff -mom "${READMEFILE:-${XDG_DATA_HOME:-$HOME/.local/share}/larbs/readme.mom}" -Tpdf | zathura - ;;
+	2) restartwm ;;
+	3) notify-send "❓ Help module" "\- Left click to open LARBS guide.
+- Middle click to refresh window manager." ;;
+	6) setsid -f "$TERMINAL" -e "$EDITOR" "$0" ;;
+esac; echo "❓"
