@@ -156,7 +156,11 @@ installationloop() {
 		case "$tag" in
 		R) repoinstall "$program" "$comment" ;;
 		G) gitinstall "$program" "$comment" ;;
-		S) scriptinstall "$program" "$comment" ;;
+		S)
+			whiptail --title "debrice Installation" \
+				--infobox "Installing \`$(basename "$program")\` ($n of $total) as a script. $comment" 9 70
+			scriptinstall "$(basename "$program")" "$program"
+			;;
 		*) maininstall "$program" "$comment" ;;
 		esac
 	}
@@ -182,7 +186,6 @@ finalize() {
 
 # Check if user is root on Debian. Install the dialog prerequisites.
 [ "$(id -u)" = 0 ] || error "Please run debrice.sh as the root user."
-distrocheck
 
 apt-get update >/dev/null 2>&1 ||
 	error "Could not refresh apt. Check your internet connection and sources."
@@ -191,6 +194,8 @@ for x in whiptail curl ca-certificates git gnupg zsh; do
 	apt_install "$x" ||
 		error "Are you sure you're running this as the root user, are on Debian 13 and have an internet connection?"
 done
+
+distrocheck
 
 # Welcome user.
 welcomemsg || error "User exited."

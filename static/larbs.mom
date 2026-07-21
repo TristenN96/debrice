@@ -1,0 +1,363 @@
+.de LI
+.LIST
+.SHIFT_LIST 10p
+..
+.PARA_SPACE 1m
+.TITLE "\s+(10A Friendly Guide to debrice!\s0"
+.AUTHOR "\s+5Luke Smith's LARBS, ported to Debian 13 with sxwm\s0"
+.DOCTYPE    DEFAULT
+.COPYSTYLE  FINAL
+.PRINTSTYLE TYPESET
+.PT_SIZE 12
+.START
+.PP
+Use vim keys (\f(CWh/j/k/l\fP) to navigate this document.
+Pressing \f(CWs\fP will fit it to window width (\f(CWa\fP to revert).
+\f(CWK\fP and \f(CWJ\fP zoom in and out.
+\f(CWSuper+f\fP to toggle fullscreen.
+\f(CWq\fP to quit.
+\f(CW/\fP to search for text.
+(These are general binds set for \fBzathura\fP, the pdf reader.)
+.LI
+.ITEM
+\f(CWMod+F1\fP will show this document at any time.
+.ITEM
+By \f(CWMod\fP, I mean the Super Key, usually known as "the Windows Key."
+.LIST OFF
+.PP
+FAQs are at the end of this document.
+.HEADING 1 "Welcome!"
+.PP
+debrice is Luke Smith's LARBS setup, ported to Debian 13 (Trixie).
+The window manager is \fBsxwm\fP (with \fBsxbar\fP as the status bar),
+the browser is \fBBrave\fP, and a complete TeX Live is installed by default.
+Everything else \(en the terminal, the scripts, the bindings, the workflow \(en
+is the LARBS you know.
+.HEADING 2 "Basic goals and principles of this system:"
+.LI
+.ITEM
+\fBNaturalness\fP \(en
+Remove the border between mind and matter:
+everything important should be as few keypresses as possible away from you,
+and you shouldn't have to think about what you're doing.
+Immersion.
+.ITEM
+\fBEconomy\fP \(en
+Programs should be simple and light on system resources and highly extensible.
+Because of this, many are terminal or small ncurses programs that have all the magic inside of them.
+.ITEM
+\fBKeyboard/vim-centrality\fP \(en
+All terminal programs (and other programs) use vim keys when possible.
+Your hands never need leave the home row or thereabout.
+.ITEM
+\fBDecentralization\fP \(en
+This system is a web of small, modifiable and replaceable programs that users can easily customize.
+.LIST OFF
+.HEADING 2 "General keyboard changes"
+.LI
+.ITEM
+Capslock is a useless key in high quality space.
+It's now remapped.
+If you press it alone, it will function as escape, making vimcraft much more natural,
+but you can also hold it down and it will act as another Windows/super/mod key.
+.ITEM
+The menu button (usually between the right Alt and Ctrl) is an alternative Super/Mod button.
+This is to make one-handing on laptops easier.
+.LIST OFF
+.PP
+If you'd like to change any of these keyboard changes, you need only open and change the \f(CWremaps\fP script.
+All custom scripts in debrice are located in \f(CW~/.local/bin/\fP.
+Actually, this should go without saying, but \fIeverything\fP here can easily be changed.
+Below in this document, there is information about where to change programs/components.
+.PP
+Additionally, while this isn't a part of the desktop environment, the default editing mode in the shell is using vi bindings.
+If you want to learn more of this, run \f(CWMod+F2\fP and type and select the option for "vi mode in shell".
+This setting can be changed if you don't like it by deleting or commenting out the contents of \f(CW~/.config/shell/inputrc\fP.
+.HEADING 2 "The Status Bar"
+.PP
+To the left, you'll see the numbers of your workspaces.
+On the right, you'll see various system status notifiers, the date, volume, even music and local weather if possible, etc.
+Each module on the right of the statusbar is a script located in \f(CW~/.local/bin/statusbar/\fP.
+You can see what they do and modify them from there.
+.PP
+The status bar itself is \fBsxbar\fP, configured in \f(CW~/.config/sxbarc\fP.
+There you can add, remove and reorder modules and set how often each refreshes.
+Note that unlike dwmblocks, sxbar modules cannot react to clicks; they refresh on their timers.
+.HEADING 3 "HiDPI and 4K Displays"
+.PP
+If you have a screen with a very high dots-per-inch, the interface, particularly the status bar at the top may be very small. To change this, you can run \f(CWxrandr --dpi 96\fP, replacing 96 with a higher number, then you can refresh the window manager in the menu at \f(CWsuper+backspace\fP. To make this change persistent after reboot, edit \f(CW~/.xprofile\fP and you will see that same command which you can change to have the dots-per-inch value you want.
+.HEADING 2 "Deeper Tutorials"
+.PP
+Press \f(CWmod+F2\fP at any time to get a menu of programs to watch videos about streaming directly from YouTube.
+You can also check the config files for programs which detail a lot of the specific bindings.
+.HEADING 1 "Key Bindings"
+.PP
+The window manager sxwm orders your windows into a stack, with the most recently manipulated window as the "master" taking the large left portion of the screen.
+If you're not familiar with this workflow, press \f(CWMod+F2\fP and select the "dwm" option to watch Luke's brief tutorial; sxwm's model is the same.
+.PP
+Notice also the case sensitivity of the shortcuts\c
+.FOOTNOTE
+To type capital letters, hold down the \f(CWShift\fP key\(emthat might sound like an obvious and condescending thing to tell you, but there have literally been multiple people (Boomers) who have emailed me asking how to type a capital letter since caps lock isn't enabled.
+.FOOTNOTE OFF
+ , Be sure you play around with these. Be flexible with the basic commands and the system will grow on you quick.
+.LI
+.ITEM
+\f(CWMod+Enter\fP \(en Spawn terminal (the default terminal is \f(CWst\fP; run \f(CWman st\fP for more.)
+.ITEM
+\f(CWMod+q\fP \(en Close window
+.ITEM
+\f(CWMod+d\fP \(en dmenu (For running commands or programs without shortcuts)
+.ITEM
+\f(CWMod+j/k\fP \(en Cycle focus thru windows by their stack order
+.ITEM
+\f(CWMod+J/K\fP \(en Move windows up/down the stack (rotate windows into the master slot)
+.ITEM
+\f(CWMod+h/l\fP \(en Change width of master window
+.ITEM
+\f(CWMod+z/x\fP \(en Increase/decrease gaps
+.ITEM
+\f(CWMod+Shift+Space\fP \(en Make a window float (move and resize with \f(CWMod+\fPleft/right click).
+.ITEM
+\f(CWMod+b\fP \(en Toggle statusbar
+.ITEM
+\f(CWMod+F5\fP \(en Reload the sxwm configuration file
+.LIST OFF
+.HEADING 2 "Window layouts"
+.PP
+sxwm has one tiling layout (master and stack) which is always active;
+there is no layout menu. What remains of dwm's layout zoo:
+.LI
+.ITEM
+\f(CWMod+f\fP \(en Fullscreen the focused window
+.ITEM
+\f(CWMod+F\fP \(en Floating (AKA normie) mode for all windows
+.ITEM
+\f(CWMod+U\fP \(en Monocle mode (all windows fullscreen; cycle with \f(CWMod+j/k\fP)
+.LIST OFF
+.HEADING 2 "Basic Programs"
+.LI
+.ITEM
+\f(CWMod+r\fP \(en lf (file browser/manager)
+.ITEM
+\f(CWMod+R\fP \(en htop (task manager, system monitor that R*dditors use to look cool)
+.ITEM
+\f(CWMod+e\fP \(en neomutt (email) \(en Must be first configured by running \f(CWmw add\fP.
+.ITEM
+\f(CWMod+E\fP \(en abook (contacts, addressbook, emails)
+.ITEM
+\f(CWMod+m\fP \(en ncmpcpp (music player)
+.ITEM
+\f(CWMod+w\fP \(en Web browser (Brave by default)
+.ITEM
+\f(CWMod+W\fP \(en nmtui (for connecting to wireless internet)
+.ITEM
+\f(CWMod+n\fP \(en vimwiki (for notes)
+.ITEM
+\f(CWMod+N\fP \(en newsboat (RSS feed reader)
+.ITEM
+\f(CWMod+F4\fP \(en pulsemixer (audio system control)
+.ITEM
+\f(CWMod+D\fP \(en passmenu (password manager)
+.LIST OFF
+.HEADING 2 "Scratchpads (dropdown terminal and calculator)"
+.PP
+sxwm handles dropdown terminals as "scratchpads": a window is first
+\fIcreated\fP as a scratchpad slot, and can then be shown or hidden at will.
+.LI
+.ITEM
+\f(CWMod+Shift+Enter\fP \(en Show/hide dropdown terminal (scratchpad 1)
+.ITEM
+\f(CWMod+Ctrl+Enter\fP \(en Make the focused window the dropdown terminal
+.ITEM
+\f(CWMod+Alt+Enter\fP \(en Spawn a fresh dropdown terminal (\f(CWst -n spterm\fP)
+.ITEM
+\f(CWMod+'\fP \(en Show/hide dropdown calculator (scratchpad 2)
+.ITEM
+\f(CWMod+Ctrl+'\fP \(en Make the focused window the dropdown calculator
+.ITEM
+\f(CWMod+Alt+'\fP \(en Spawn a fresh dropdown calculator
+.LIST OFF
+.PP
+So the first time you want a dropdown terminal: \f(CWMod+Alt+Enter\fP to spawn it,
+\f(CWMod+Ctrl+Enter\fP to register it, and \f(CWMod+Shift+Enter\fP toggles it from then on.
+.HEADING 2 "Tags/Workspaces"
+.PP
+There are nine workspaces, the active one is highlighted in the top left.
+.LI
+.ITEM
+\f(CWMod+(Number)\fP \(en Go to that number workspace
+.ITEM
+\f(CWMod+Shift+(Number)\fP \(en Send window to that workspace
+.ITEM
+\f(CWMod+Tab\fP \(en Go to previous workspace (may also use \f(CW\\\fP for Tab)
+.ITEM
+\f(CWMod+g\fP \(en Go to left workspace
+.ITEM
+\f(CWMod+;\fP \(en Go to right workspace
+.ITEM
+\f(CWMod+Left/Right\fP \(en Go to another display
+.ITEM
+\f(CWMod+Shift+Left/+Right\fP \(en Move window to another display
+.LIST OFF
+.HEADING 2 "System"
+.LI
+.ITEM
+\f(CWMod+BackSpace\fP \(enChoose to lock screen, logout, shutdown, reboot, etc.
+.ITEM
+\f(CWMod+F1\fP \(en Show this document
+.ITEM
+\f(CWMod+F2\fP \(en Watch tutorial videos on a subject
+.ITEM
+\f(CWMod+F3\fP \(en Select screen/display to use
+.ITEM
+\f(CWMod+F4\fP \(en pulsemixer (audio control)
+.ITEM
+\f(CWMod+F5\fP \(en Reload the sxwm configuration
+.ITEM
+\f(CWMod+F6\fP \(en Transmission torrent client (not installed by default)
+.ITEM
+\f(CWMod+F7\fP \(en Toggle on/off transmission client via dmenu
+.ITEM
+\f(CWMod+F8\fP \(en Check mail, if mutt-wizard is configured. (Run \f(CWmw add\fP to set up.)
+.ITEM
+\f(CWMod+F9\fP \(en Mount a USB drive/hard drive or Android
+.ITEM
+\f(CWMod+F10\fP \(en Unmount a non-essential drive or Android
+.ITEM
+\f(CWMod+F11\fP \(en View webcam
+.ITEM
+\f(CWMod+F12\fP \(en Rerun keyboard mapping scripts if new keyboard is attached
+.ITEM
+\f(CWMod+`\fP \(en Select an emoji to copy to clipboard
+.ITEM
+\f(CWMod+Insert\fP \(en Pastes text you have saved in a file at ~/.local/share/larbs/snippets
+.LIST OFF
+.HEADING 2 "Audio"
+.PP
+I use ncmpcpp as a music player, which is a front end for mpd.
+.LI
+.ITEM
+\f(CWMod+m\fP \(en ncmpcpp, the music player
+.ITEM
+\f(CWMod+.\fP \(en Next track
+.ITEM
+\f(CWMod+,\fP \(en Previous track
+.ITEM
+\f(CWMod+<\fP \(en Restart track
+.ITEM
+\f(CWMod+>\fP \(en Toggle playlist looping
+.ITEM
+\f(CWMod+p\fP \(en Toggle pause
+.ITEM
+\f(CWMod+P\fP \(en Force pause music player daemon and all mpv videos
+.ITEM
+\f(CWMod+M\fP \(en Mute all audio
+.ITEM
+\f(CWMod+-\fP \(en Decrease volume (holding shift increases amount)
+.ITEM
+\f(CWMod++\fP \(en Increase volume (holding shift increases amount)
+.ITEM
+\f(CWMod+[\fP \(en Back 10 seconds (holding shift moves by one minute)
+.ITEM
+\f(CWMod+]\fP \(en Forward 10 seconds (holding shift moves by one minute)
+.ITEM
+\f(CWMod+F4\fP \(en pulsemixer (general audio/volume sink/source control)
+.LIST OFF
+.HEADING 2 "Recording"
+.PP
+I use maim and ffmpeg to make different recordings of the desktop and audio.
+All of these recording shortcuts will output into \f(CW~\fP, and will not overwrite
+previous recordings as their names are based on their exact times.
+.LI
+.ITEM
+\f(CWPrintScreen\fP \(en Take a screenshot
+.ITEM
+\f(CWShift+PrintScreen\fP \(en Select area to screenshot
+.ITEM
+\f(CWMod+PrintScreen\fP \(en Opens dmenu menu to select kind of audio/video recording
+.ITEM
+\f(CWMod+Delete\fP \(en Kills any recording started in the above way.
+.ITEM
+\f(CWMod+ScrollLock\fP \(en Toggle screenkey (if installed) to show keypresses
+.LIST OFF
+.HEADING 2 "Other buttons"
+.PP
+I've mapped those extra buttons that some keyboards have (play and pause
+buttons, screen brightness, email, web browsing buttons, etc.) to what you
+would expect.
+.HEADING 1 "Configuration"
+.PP
+Dotfiles/settings files are located in \f(CW~/.config/\fP.
+.PP
+sxwm and sxbar are configured with plain text files: \f(CW~/.config/sxwmrc\fP
+and \f(CW~/.config/sxbarc\fP. Edit them and press \f(CWMod+F5\fP to reload sxwm;
+vim restarts sxbar automatically when you save its config.
+.PP
+Suckless programs, st (the terminal) and dmenu among others do not have
+traditional config files, but have their source code location in \f(CW~/.local/src/\fP.
+There you can modify their \f(CWconfig.h\fP files or other source code, then \f(CWsudo make install\fP to reinstall.
+sxwm and sxbar themselves are also cloned there, but configured by the text files above.
+.HEADING 1 "Frequently Asked Questions (FAQs)"
+.HEADING 2 "My keyboard isn't working as expected!"
+.PP
+As mentioned above, debrice makes some keyboard changes with the \f(CWremaps\fP script.
+These settings may override your preferred settings, so you should open this file and comment out troublesome lines if you have issues.
+.HEADING 2 "My audio isn't working!"
+.PP
+On fresh install, the Linux audio system often mutes outputs.
+You may also need to set your preferred default output sink which you can do by the command line, or by selecting one with \f(CWpulsemixer\fP (\f(CWMod+F4\fP).
+.HEADING 2 "How do I copy and paste?"
+.PP
+Copying and pasting is always program-specific on any system.
+In most graphical programs, copy and paste will be the same as they are on Windows: \f(CWctrl-c\fP and \f(CWctrl-v\fP.
+In the Linux terminal, those binds have other more important purposes, so you can run \f(CWman st\fP to see how to copy and paste in my terminal build.
+.PP
+Additionally, I've set vim to use the clipboard as the default buffer, which means when you yank or delete something in vim, it will be in your system clipboard as well, so you can \f(CWctrl-v\fP it into your browser instance, etc. You can also paste material copied from other programs into vim with the typical vim bindings.
+.HEADING 2 "How do I change the background/wallpaper?"
+.PP
+The system will always read the file \f(CW~/.local/share/bg\fP as the wallpaper.
+The script \f(CWsetbg\fP, if run on an image will set it as the persistent background.
+When using the file manager, you can simply hover over an image name and type \f(CWb\fP and this will run \f(CWsetbg\fP.
+.HEADING 2 "How I change the colorscheme?"
+.PP
+The window manager and bar colors live in \f(CW~/.config/sxwmrc\fP and \f(CW~/.config/sxbarc\fP (reload with \f(CWMod+F5\fP after editing).
+The terminal colors live in \f(CW~/.config/x11/xresources\fP, which lists several color schemes you can activate or extend; vim updates them automatically on save, and there is a line in \f(CW~/.config/x11/xprofile\fP you can uncomment to load them on login.
+.PP
+Or, if you want to use \f(CWwal\fP to automatically generate colorschemes from your wallpapers, just install it and \f(CWsetbg\fP will automatically detect and run it on startup and wallpaper change.
+.HEADING 2 "How do I set up my email?"
+.PP
+debrice comes with mutt-wizard, which gives the ability to receive and send all your email and keep an offline store of it all in your terminal, without the need for browser.
+You can add email accounts by running \f(CWmw -a your@email.com\fP.
+See \f(CWman mw\fP for all the information you need about mutt-wizard.
+.PP
+Once you have successfully added your email address(es), you can open your mail with \f(CWneomutt\fP which is also bound to \f(CWMod+e\fP.
+You can sync your mail by pressing \f(CWMod+F8\fP and you can set a cronjob to sync mail every 10 minutes by running \f(CWmw -t 10\fP.
+.HEADING 2 "How do I set up my music?"
+.PP
+By default, mpd, the music daemon assumes that \f(CW~/Music\fP is your music directory.
+This can be changed in \f(CW~/.config/mpd/mpd.conf\fP.
+When you add music to your music folder, you may have to run \f(CWmpc up\fP in the terminal to update the database.
+mpd is controlled by ncmpcpp, which is accessible by \f(CWMod+m\fP.
+.HEADING 2 "How do I update debrice?"
+.PP
+Just rerun the script (as root) and it will update an existing install if you select the same username.
+Files it would overwrite are first backed up to \f(CW~/.config/debrice-backup-<timestamp>/\fP, so nothing is truly lost.
+.HEADING 1 "Important Links"
+.PP
+You can follow links via the keyboard in this pdf reader by pressing \f(CWf\fP followed by the number that appears on the desired link.
+.LI
+.ITEM
+.PDF_WWW_LINK "mailto:luke@lukesmith.xyz" "luke@lukesmith.xyz"
+\(en For questions about the original LARBS!
+.ITEM
+.PDF_WWW_LINK "http://lukesmith.xyz" "https://lukesmith.xyz"
+\(en For stalking!
+.ITEM
+.PDF_WWW_LINK "https://github.com/LukeSmithxyz" "Luke's Github Page"
+\(en For the code behind LARBS!
+.ITEM
+.PDF_WWW_LINK "https://github.com/uint23/sxwm" "sxwm"
+\(en The window manager used here.
+.ITEM
+.PDF_WWW_LINK "http://lukesmith.xyz/rss.xml" "RSS"
+\(en For updates!

@@ -196,8 +196,25 @@ and brave-browser verified present in Brave's stable repo index (R tag).
 msmtp, pass, abook (abook exists in Trixie — verified in Phase 2; if it had
 not, it would become an S/G entry per spec).
 
-## D22 — Xephyr smoke test attempted, not guaranteed
-xserver-xephyr is in progs.csv for testing. tests/docker-test.sh tries to
-launch sxwm inside Xephyr and trigger a config reload via xdotool key super+F5;
-if the environment forbids it, the test degrades to build+parser validation
-and the limitation is recorded in DIFFERENCES.md.
+## D22 — Xephyr smoke test attempted; parser harness used instead
+xserver-xephyr is in progs.csv for testing and the docker stage does run the
+full Xephyr launch + super+F5 reload check. The development host has no
+Xephyr/Xvfb/Xnest and no packages may be installed host-side, so locally the
+stage degrades to `parsecheck`: sxwm's and sxbar's own parser.c files are
+compiled into small stub harnesses (symbols from extern.h stubbed) and run
+against static/sxwmrc and static/sxbarc. That caught a real bug (trailing
+comment after a `call` action; a `#` suffix breaking a strcmp-parsed bool),
+which is exactly the class of error a launch test exists for. Recorded as a
+limitation in DIFFERENCES.md §6.
+
+## D24 — Repo URL placeholder and larbs.mom port
+debrice.sh self-bootstraps by cloning `$repourl` when curl'd standalone;
+both it and the README use the placeholder
+https://github.com/debrice/debrice(.git) — whoever publishes the repo sets
+that to its real location (one variable + the README curl line).
+static/larbs.mom is a full port of dwm's larbs.mom: same mom structure and
+voice, but the binding lists reflect sxwmrc reality (scratchpad workflow,
+single layout + monocle/floating, Mod+F5 reload, Brave, sxbar without click
+actions, no sticky/zoom/multi-tag) and the Configuration/FAQ sections point
+at sxwmrc/sxbarc instead of dwm's config.h. Verified renderable with
+groff -mom -Tpdf on the host.

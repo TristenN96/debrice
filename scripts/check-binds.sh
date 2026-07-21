@@ -30,9 +30,10 @@ norm_combo() {
 	case "$key" in
 	XF86XK_*) key="XF86${key#XF86XK_}" ;;
 	esac
-	key="$(printf '%s' "$key" | tr 'A-Z' 'a-z')"
+	key="$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')"
 	[ "$mods" = "0" ] && mods=""
-	local m conv="" part
+	local m part
+	local -a conv=()
 	IFS='|' read -ra parts <<<"$mods"
 	for part in "${parts[@]}"; do
 		case "$part" in
@@ -46,10 +47,14 @@ norm_combo() {
 			exit 1
 			;;
 		esac
-		conv="$conv$m "
+		conv+=("$m")
 	done
 	local sorted
-	sorted="$(printf '%s\n' $conv | sort -u | paste -sd+ -)"
+	if [ "${#conv[@]}" -gt 0 ]; then
+		sorted="$(printf '%s\n' "${conv[@]}" | sort -u | paste -sd+ -)"
+	else
+		sorted=""
+	fi
 	if [ -n "$sorted" ]; then
 		printf '%s+%s\n' "$sorted" "$key"
 	else
@@ -81,7 +86,7 @@ spawn_token() {
 sxwmrc_combo() {
 	local line="$1" combo key sorted
 	combo="$(printf '%s' "$line" | cut -d: -f2)"
-	key="$(printf '%s' "$combo" | awk -F+ '{print $NF}' | tr -d ' \t' | tr 'A-Z' 'a-z')"
+	key="$(printf '%s' "$combo" | awk -F+ '{print $NF}' | tr -d ' \t' | tr '[:upper:]' '[:lower:]')"
 	sorted="$(printf '%s' "$combo" | tr '+' '\n' | head -n -1 |
 		sed 's/[ \t]//g' | sed 's/^super$/mod/' | sort -u | paste -sd+ -)"
 	if [ -n "$sorted" ]; then
@@ -105,7 +110,7 @@ build_sxwm_tables() {
 
 # Collect every dwm binding as "combo|first-token-or-empty".
 collect_dwm_binds() {
-	local inblock=0 line mods key fn tok
+	local inblock=0 line mods key tok
 	while IFS= read -r line; do
 		case "$line" in
 		*'static const Key keys[]'*) inblock=1; continue ;;
@@ -139,7 +144,9 @@ collect_dwm_binds() {
 		\{*)
 			mods="$(printf '%s' "$line" | sed -n 's/^{\s*\([^,]*\),.*/\1/p' | tr -d '[:space:]')"
 			key="$(printf '%s' "$line" | sed -n 's/^\s*{[^,]*,\s*\([^,]*\),.*/\1/p' | tr -d '[:space:]')"
-			[ -n "$mods" ] && [ -n "$key" ] || continue
+			if [ -z "$mods" ] || [ -z "$key" ]; then
+				continue
+			fi
 			case "$line" in
 			*spawn*)
 				tok="$(spawn_token "$line")"
@@ -164,7 +171,7 @@ main() {
 		if [ "${SXWM_SET[$combo]:-}" = 1 ]; then
 			# Present: for spawns, the command token must survive the port.
 			if [ -n "$tok" ] && ! printf '%s' "${SXWM_ACT[$combo]}" | grep -qF "$tok"; then
-				printf 'WRONG CMD: %-28s expected token `%s` in action\n' "$combo" "$tok"
+				printf 'WRONG CMD: %-28s expected token "%s" in action\n' "$combo" "$tok"
 				wrongcmd=$((wrongcmd + 1))
 			fi
 		elif ! grep -qF "$combo" "$DIFFS"; then
