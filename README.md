@@ -189,6 +189,10 @@ option in the sysact menu (`Mod+BackSpace`) sends it too.
 - **PipeWire runs as systemd user units** — `pipewire`, `pipewire-pulse`
   and `wireplumber` are enabled at install time and start at first
   graphical login (upstream voidrice spawned `pipewire` from `~/.xprofile`).
+- **Default wallpaper is `static/ship.jpg`** — deployed to
+  `~/.local/share/ship.jpg` with `~/.local/share/bg` pointing at it,
+  replacing voidrice's default; the stock `setbg` in the xprofile picks it
+  up at first login, no script changes needed.
 
 See [DIFFERENCES.md](DIFFERENCES.md) for the complete list with reasons and
 [DECISIONS.md](DECISIONS.md) for the judgment calls made while porting.

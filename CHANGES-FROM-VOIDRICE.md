@@ -56,3 +56,4 @@ are added at deploy time from `static/` and noted at the bottom.
 
 - `~/.config/sxwmrc` — copied from `static/sxwmrc`: Luke's dwm keybindings ported to sxwm (new file).
 - `~/.config/sxbarc` — copied from `static/sxbarc`: sxbar modules wired to Luke's `sb-*` statusbar scripts (new file).
+- `~/.local/share/ship.jpg` + `~/.local/share/bg` — new default wallpaper: `bg` now points at the shipped `static/ship.jpg` instead of voidrice's `thiemeyer_road_to_samarkand.jpg`, so the stock `setbg` mechanism picks it up unchanged.

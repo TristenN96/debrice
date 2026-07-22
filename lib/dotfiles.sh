@@ -5,7 +5,8 @@
 # ~/.config/debrice-backup-<timestamp>/ so the script is safe to re-run.
 
 # deploy_dotfiles USER HOME — copy $DEBRICE_DOTFILES_SRC into HOME, then
-# overlay $DEBRICE_STATIC_SRC/sxwmrc and sxbarc into ~/.config.
+# overlay $DEBRICE_STATIC_SRC/sxwmrc and sxbarc into ~/.config and install
+# $DEBRICE_STATIC_SRC/ship.jpg as the default ~/.local/share/bg wallpaper.
 # USER may be empty (tests); then no chown/sudo -u is attempted.
 deploy_dotfiles() {
 	local name="$1" home="$2" src static ts backup rel
@@ -35,6 +36,15 @@ deploy_dotfiles() {
 	mkdir -p "$home/.config"
 	[ -f "$static/sxwmrc" ] && cp -f "$static/sxwmrc" "$home/.config/sxwmrc"
 	[ -f "$static/sxbarc" ] && cp -f "$static/sxbarc" "$home/.config/sxbarc"
+
+	# Default wallpaper: static/ship.jpg replaces voidrice's default bg
+	# (a symlink to thiemeyer_road_to_samarkand.jpg). bg stays a symlink
+	# next to the image, so the stock setbg mechanism works unchanged.
+	if [ -f "$static/ship.jpg" ]; then
+		mkdir -p "$home/.local/share"
+		cp -f "$static/ship.jpg" "$home/.local/share/ship.jpg"
+		ln -sf "ship.jpg" "$home/.local/share/bg"
+	fi
 
 	# Hand everything to the user.
 	if [ -n "$name" ]; then

@@ -187,7 +187,13 @@ sudo -u debricetest /debrice/scripts/check-session-deps.sh \
 	&& [ -L /etc/systemd/user/default.target.wants/pipewire-pulse.service ] \
 	&& [ -L /etc/systemd/user/pipewire.service.wants/wireplumber.service ] \
 	|| { echo "RUNTIME FAILED: pipewire user units not enabled"; exit 1; }
-echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps, pipewire units)"
+# Default wallpaper: deploy must land ~/.local/share/bg (symlink to the
+# shipped ship.jpg), and setbg's runner must be on PATH.
+[ -e /home/debricetest/.local/share/bg ] \
+	|| { echo "RUNTIME FAILED: ~/.local/share/bg missing after dotfiles deploy"; exit 1; }
+command -v xwallpaper >/dev/null 2>&1 \
+	|| { echo "RUNTIME FAILED: xwallpaper not on PATH after install"; exit 1; }
+echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps, pipewire units, wallpaper)"
 EOF
 }
 
