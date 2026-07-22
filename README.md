@@ -193,6 +193,12 @@ option in the sysact menu (`Mod+BackSpace`) sends it too.
   `~/.local/share/ship.jpg` with `~/.local/share/bg` pointing at it,
   replacing voidrice's default; the stock `setbg` in the xprofile picks it
   up at first login, no script changes needed.
+- **Terminals ship semi-transparent (~85%)** — st's `alpha` is pinned to
+  `0.85` at build time (idempotent sed in `lib/builds.sh`; xresources and
+  the xprofile stay stock) and picom renders it. Change it by editing the
+  sed value (or `config.h`) and rebuilding st, or per-window at runtime
+  with `xprop -id <wid> -f _NET_WM_WINDOW_OPACITY 32c -set
+  _NET_WM_WINDOW_OPACITY <0-4294967295>`.
 
 See [DIFFERENCES.md](DIFFERENCES.md) for the complete list with reasons and
 [DECISIONS.md](DECISIONS.md) for the judgment calls made while porting.

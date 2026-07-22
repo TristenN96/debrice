@@ -385,3 +385,21 @@ reproduction with the shipped configs:
   Hardened our side: sb-forecast/sb-doppler curls get --max-time 20
   (documented in CHANGES-FROM-VOIDRICE.md); the design caveat is recorded
   in DIFFERENCES.md §7.
+
+## D31 — st alpha compiled in: 0.85 via the float knob
+The requested pin was `static unsigned int alpha` = 0xd9 — the classic st
+alpha-patch variable. Current LukeSmithxyz/st no longer has it: the knob
+is now `float alpha` (0.0-1.0, upstream default 0.8), with alphaUnfocus
+derived as alpha - alphaOffset, so one pin covers focused and unfocused
+windows. The pin is therefore `float alpha = 0.85` (0xd9/0xff ≈ 0.85),
+applied by gitmakeinstall via an idempotent sed after clone/pull and
+before make, run as $name so the clone stays user-owned; a grep guards
+the anchor line so an upstream rename fails loudly instead of silently
+building an unpinned st. Compile-time was chosen over runtime config so
+the vendored xresources and the commented-out xrdb line in xprofile stay
+stock. picom (already in progs.csv and the xprofile autostart — verified)
+renders the alpha. CI cannot assert transparency itself meaningfully in
+Xvfb — a plain framebuffer proves nothing about how compositing looks —
+so the runtime stage asserts the pin landed in the build tree's config.h
+and that picom is on PATH. Visual verification is manual: log in, open
+st over the wallpaper, expect ~85% opacity.

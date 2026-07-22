@@ -24,6 +24,20 @@ gitmakeinstall() {
 	case " $NOBUILD_REPOS " in
 	*" $prog "*) : ;; # header-only/script repo: nothing to compile
 	*)
+		# Pinned build-time defaults, applied after clone/pull, before make.
+		case "$prog" in
+		st)
+			# st alpha: compile 85% opacity in. Upstream's knob is a float
+			# (0.0-1.0), not the old alpha patch's `static unsigned int
+			# alpha`; 0xd9/0xff ≈ 0.85. Compile-time pinning keeps the
+			# vendored xresources and xprofile stock. Run sed as $name so
+			# the clone stays user-owned; fail loudly if upstream renames
+			# the knob — the pin must move with it.
+			grep -q '^float alpha = ' "$dir/config.h" || return 1
+			sudo -u "$name" sed -i 's/^float alpha = .*;/float alpha = 0.85;/' \
+				"$dir/config.h" || return 1
+			;;
+		esac
 		(cd "$dir" && sudo -u "$name" make >/dev/null) || return 1
 		;;
 	esac

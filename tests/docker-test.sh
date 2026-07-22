@@ -193,7 +193,15 @@ sudo -u debricetest /debrice/scripts/check-session-deps.sh \
 	|| { echo "RUNTIME FAILED: ~/.local/share/bg missing after dotfiles deploy"; exit 1; }
 command -v xwallpaper >/dev/null 2>&1 \
 	|| { echo "RUNTIME FAILED: xwallpaper not on PATH after install"; exit 1; }
-echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps, pipewire units, wallpaper)"
+# st transparency default: the pinned alpha sed must have landed in the
+# build tree, and the compositor that renders it must be installed.
+# (Actual transparency is verified manually — DECISIONS.md explains why
+# an Xvfb assertion would prove nothing.)
+grep -q '^float alpha = 0.85;' /home/debricetest/.local/src/st/config.h \
+	|| { echo "RUNTIME FAILED: st alpha pin did not land in config.h"; exit 1; }
+command -v picom >/dev/null 2>&1 \
+	|| { echo "RUNTIME FAILED: picom not on PATH after install"; exit 1; }
+echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps, pipewire units, wallpaper, st alpha)"
 EOF
 }
 
