@@ -31,6 +31,7 @@ are added at deploy time from `static/` and noted at the bottom.
 - `.local/bin/statusbar/sb-forecast` — removed `pkill -RTMIN+"${1:-5}" dwmblocks`: same reason.
 - `.local/bin/transadd` — removed `pkill -RTMIN+7 dwmblocks`: same reason.
 - `.local/bin/statusbar/sb-forecast` — added `--max-time 20` to the wttr.in curl: sxbar runs module commands with a blocking popen in its single event loop, so an unbounded fetch can freeze the whole bar (workspace highlight included) on a bad network.
+- `.local/bin/statusbar/sb-forecast` — the backgrounded forecast-retry subshell now redirects stdout to `/dev/null`: it otherwise inherits the caller's stdout pipe, and any consumer reading the pipe to EOF (sxbar, before our build-time single-line-read pin) blocks until the retry loop exits — unbounded when wttr.in keeps failing (hardware-confirmed bar freeze).
 - `.local/bin/statusbar/sb-doppler` — same `--max-time 20` addition to all three radar-image curls: same reason.
 - `.local/bin/torwrap` — removed `pkill -RTMIN+7 dwmblocks`: same reason.
 - `.local/bin/td-toggle` — removed the trailing torrent-module refresh line: same reason.
@@ -59,3 +60,4 @@ are added at deploy time from `static/` and noted at the bottom.
 - `~/.config/sxwmrc` — copied from `static/sxwmrc`: Luke's dwm keybindings ported to sxwm (new file).
 - `~/.config/sxbarc` — copied from `static/sxbarc`: sxbar modules wired to Luke's `sb-*` statusbar scripts (new file).
 - `~/.local/share/ship.jpg` + `~/.local/share/bg` — new default wallpaper: `bg` now points at the shipped `static/ship.jpg` instead of voidrice's `thiemeyer_road_to_samarkand.jpg`, so the stock `setbg` mechanism picks it up unchanged.
+- `~/.config/picom/picom.conf` — copied from `static/picom.conf` (`backend = "glx"`, `vsync = true`): Debian 13's picom FATALs on the rice's bare `picom` autostart with "Backend not specified. You must choose one explicitly". A deployed config (rather than editing the autostart to `picom --backend glx`) keeps voidrice's xprofile line verbatim and fixes every picom invocation, not just the autostart one.

@@ -403,3 +403,35 @@ Xvfb — a plain framebuffer proves nothing about how compositing looks —
 so the runtime stage asserts the pin landed in the build tree's config.h
 and that picom is on PATH. Visual verification is manual: log in, open
 st over the wallpaper, expect ~85% opacity.
+
+## D32 — Two hardware-confirmed bugs: picom backend, sxbar module-pipe freeze
+Bare-metal run #4 surfaced two bugs the suite did not catch:
+1. **picom never starts.** Debian 13's picom FATALs on a bare invocation
+   with "Backend not specified. You must choose one explicitly" — the rice
+   autostarts bare `picom` from xprofile. Fixed by deploying
+   static/picom.conf to ~/.config/picom/picom.conf (`backend = "glx"`,
+   `vsync = true`) rather than editing the autostart to `picom --backend
+   glx`: voidrice's xprofile line stays verbatim and every picom invocation
+   is fixed, not just the autostart one. The Xvfb stage launches bare
+   `picom` with the deployed config and asserts survival; a "Backend not
+   specified" death fails hard, any other death retries once with xrender
+   in the TEST COPY (Xvfb GL limitation, not the shipped bug class).
+2. **sxbar workspace highlight frozen on 1.** D30's audit concluded
+   "tracks correctly" from source reading + an Xvfb repro — wrong, as
+   hardware proved. Real root cause (uint23/sxbar#19, filed): sxbar reads
+   each module's popen pipe until EOF; sb-forecast backgrounds a retry
+   subshell inheriting that pipe, so a stale weather cache plus failing
+   wttr.in makes a grandchild that never exits, and sxbar's
+   single-threaded loop blocks in fgets — entire bar frozen, highlight
+   included. Xvfb passed because container curls fail/succeed fast. Fix:
+   build-time pin in lib/builds.sh rewrites `while (fgets…)` to
+   `if (fgets…)` (dwmblocks' single-line semantics; grep-guarded like the
+   st alpha pin), plus sb-forecast's background subshell no longer
+   inherits stdout. The Xvfb stage now injects a hanger module
+   (`sh -c 'sleep 300 & echo ok'`) reproducing the pipe-holding grandchild
+   deterministically — without the pin the stage fails — and the bar
+   assertion was rewritten to test the BAR, not the atom: the #cc241d
+   highlight span must leave label 1's box entirely and appear on the
+   newly-active label's box after super+2. DIFFERENCES.md §7 corrected.
+   Residual uncovered class (module hangs before printing anything) is
+   documented there.

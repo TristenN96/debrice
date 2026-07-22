@@ -60,5 +60,5 @@ checkforecast && showweather ||
 		done
 		! checkforecast &&
 			until getforecast; do sleep 60; done
-		) &
+		) >/dev/null &
 	echo ) 9>"${XDG_RUNTIME_DIR}/sb-forecast.lock"

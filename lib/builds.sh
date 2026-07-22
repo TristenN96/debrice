@@ -37,6 +37,27 @@ gitmakeinstall() {
 			sudo -u "$name" sed -i 's/^float alpha = .*;/float alpha = 0.85;/' \
 				"$dir/config.h" || return 1
 			;;
+		sxbar)
+			# sxbar freeze pin (hardware-confirmed, uint23/sxbar#19):
+			# run_command() reads each module's popen pipe until EOF, but
+			# sb-* scripts background retry jobs that inherit the pipe
+			# (sb-forecast's wttr.in loop is unbounded when the fetch
+			# keeps failing). EOF never comes, sxbar's single-threaded
+			# loop blocks in fgets, and the whole bar freezes — workspace
+			# highlight included. dwmblocks reads a single line per
+			# module; pin sxbar to the same semantics: read one line
+			# (while→if) and turn the loop body's two allocation-failure
+			# `break;`s (the only ones in the file) into plain returns —
+			# `break` is illegal once the loop is gone. Both seds are
+			# no-ops on an already-pinned tree. Fail loudly if upstream
+			# reshapes run_command() — the pin must move with it.
+			grep -q 'fgets(buffer, sizeof buffer, fp)' \
+				"$dir/src/modules.c" || return 1
+			sudo -u "$name" sed -i \
+				-e 's/while (fgets(buffer, sizeof buffer, fp)) {/if (fgets(buffer, sizeof buffer, fp)) {/' \
+				-e 's|break;|pclose(fp); return res ? res : strdup("");|' \
+				"$dir/src/modules.c" || return 1
+			;;
 		esac
 		(cd "$dir" && sudo -u "$name" make >/dev/null) || return 1
 		;;

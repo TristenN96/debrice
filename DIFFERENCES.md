@@ -171,30 +171,45 @@ hardware, so they are removed rather than ported):
 
 ## 7. Upstream notes: sxwm/sxbar interop
 
-Workspace-indicator tracking was audited end-to-end (sxbar.c, sxwm.c, and
-an Xvfb reproduction with the shipped configs):
+Workspace-indicator tracking was audited end-to-end twice: the first audit
+(reading sxbar.c/sxwm.c + an Xvfb reproduction) concluded "works, no patch
+needed" and was WRONG — hardware kept the highlight frozen on workspace 1
+while `_NET_CURRENT_DESKTOP` tracked correctly (xprop -spy). Root cause,
+confirmed by source trace:
 
-- sxbar's workspace widget reads `_NET_CURRENT_DESKTOP` from the root
-  window and repaints on the matching PropertyNotify; its main loop also
-  repaints every second regardless. sxwm sets every atom sxbar needs at
+- sxbar's workspace widget re-reads `_NET_CURRENT_DESKTOP` on EVERY redraw
+  (no caching) and repaints on the matching PropertyNotify plus an
+  unconditional 1-second timer tick. sxwm sets every atom sxbar needs at
   startup (`_NET_SUPPORTED` includes the desktop atoms,
   `_NET_NUMBER_OF_DESKTOPS`, `_NET_DESKTOP_NAMES` as "1"…"9",
-  `_NET_CURRENT_DESKTOP`, per-client `_NET_WM_DESKTOP`), so no EWMH patch
-  is needed on either side. The Xvfb stage proves it: the
-  active-workspace highlight visibly moves on super+2.
+  `_NET_CURRENT_DESKTOP`, per-client `_NET_WM_DESKTOP`), so there is no
+  EWMH gap on either side.
+- The freeze is upstream bug uint23/sxbar#19: sxbar runs module commands
+  with a blocking popen and reads the pipe **until EOF** — and EOF requires
+  every process holding the write end to exit. sb-forecast backgrounds a
+  retry subshell that inherits that pipe; with a stale weather cache and
+  wttr.in failing/rate-limiting, that grandchild runs ~33 minutes and then
+  an unbounded `until` loop. sxbar's single-threaded loop blocks in
+  `fgets`: no ticks, no redraws, no PropertyNotify handling — the whole
+  bar (clock included), not just the workspace highlight. The Xvfb test
+  passed because the container's curls fail or succeed fast, unfreezing
+  the bar before the assertion ran.
+- Fix shipped here: a build-time pin in lib/builds.sh rewrites sxbar's
+  `while (fgets…)` to `if (fgets…)` (single-line read, dwmblocks'
+  semantics — every sb-* script emits exactly one line), plus sb-forecast's
+  background subshell no longer inherits stdout (see
+  CHANGES-FROM-VOIDRICE.md). The Xvfb stage now injects a hanger module
+  (`sleep 300 & echo ok`) reproducing the pipe-holding grandchild
+  deterministically and asserts on the bar's PIXELS: the active-workspace
+  highlight span must leave label 1's box entirely and appear on the
+  newly-active label's box.
 - sxbar.1 is an EMPTY file upstream; src/parser.c and default_sxbarc are
   the only accurate references for the `workspaces.*` keys. Our sxbarc
   matches them exactly.
-- sxbar runs module commands with a blocking popen in its single event
-  loop: a hung module freezes the whole bar, workspace highlight included
-  (upstream design). The two network modules used in sxbarc (sb-forecast,
-  sb-doppler) now call curl with `--max-time 20` (see
-  CHANGES-FROM-VOIDRICE.md), so a bad network can stall the bar for at
-  most ~20 s per module. A highlight that still never moves on hardware
-  therefore means a stale sxbar binary (predating the PropertyNotify
-  tracking), a duplicate sxbar instance stacked over the good one, or a
-  hung module — rebuild/restart sxbar; the shipped combo is proven by
-  the Xvfb stage.
+- Caveat the pin does NOT cover: a module that hangs before printing any
+  output (e.g. `transmission-remote -l` against an unresponsive daemon)
+  still blocks the first `fgets`. That class needs an upstream read
+  timeout; noted in the issue.
 - sxwm does not manage dock windows: it maps them and leaves them out of
   `_NET_CLIENT_LIST` (verified in src/sxwm.c). sxbar is unaffected (it
   draws its own dock window), but taskbars/pagers that enumerate

@@ -199,9 +199,20 @@ command -v xwallpaper >/dev/null 2>&1 \
 # an Xvfb assertion would prove nothing.)
 grep -q '^float alpha = 0.85;' /home/debricetest/.local/src/st/config.h \
 	|| { echo "RUNTIME FAILED: st alpha pin did not land in config.h"; exit 1; }
+# sxbar freeze pin (uint23/sxbar#19): the single-line-read sed must have
+# landed in the build tree — an unpinned sxbar freezes the whole bar
+# (workspace highlight included) the first time sb-forecast backgrounds a
+# retry with a stale cache.
+grep -q 'if (fgets(buffer, sizeof buffer, fp)) {' \
+	/home/debricetest/.local/src/sxbar/src/modules.c \
+	|| { echo "RUNTIME FAILED: sxbar single-line-read pin did not land in src/modules.c"; exit 1; }
 command -v picom >/dev/null 2>&1 \
 	|| { echo "RUNTIME FAILED: picom not on PATH after install"; exit 1; }
-echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps, pipewire units, wallpaper, st alpha)"
+# picom startup config: Debian 13's picom FATALs on a bare invocation
+# without an explicit backend, so the deploy must land the pinned config.
+grep -q '^backend = "glx";' /home/debricetest/.config/picom/picom.conf \
+	|| { echo "RUNTIME FAILED: ~/.config/picom/picom.conf not deployed"; exit 1; }
+echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps, pipewire units, wallpaper, st alpha, picom config)"
 EOF
 }
 
@@ -444,22 +455,48 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq git build-essential pkg-config xvfb x11-utils \
 	xdotool libx11-dev libxinerama-dev libxcursor-dev \
-	libxft-dev libfontconfig1-dev fonts-dejavu-core >/dev/null
+	libxft-dev libfontconfig1-dev fonts-dejavu-core \
+	picom libgl1-mesa-dri >/dev/null
 git clone --depth 1 -q https://github.com/uint23/sxwm.git /tmp/sxwm
 make -C /tmp/sxwm >/dev/null
 make -C /tmp/sxwm install PREFIX=/usr/local >/dev/null
 # sxbar too: the workspace-highlight tracking is asserted below. The shipped
 # sxwmrc autostarts it via exec, which is exactly the path under test.
 git clone --depth 1 -q https://github.com/uint23/sxbar.git /tmp/sxbar
+# Apply the same build-time pin as lib/builds.sh (KEEP IN SYNC): read one
+# line per module instead of reading the popen pipe to EOF — a backgrounded
+# module grandchild holding the pipe otherwise freezes the whole bar
+# (uint23/sxbar#19). The stage tests the shipped rice, so it must test the
+# patched build.
+grep -q 'fgets(buffer, sizeof buffer, fp)' /tmp/sxbar/src/modules.c \
+	|| { echo "sxbar pin anchor missing — upstream reshaped run_command()"; exit 1; }
+sed -i \
+	-e 's/while (fgets(buffer, sizeof buffer, fp)) {/if (fgets(buffer, sizeof buffer, fp)) {/' \
+	-e 's|break;|pclose(fp); return res ? res : strdup("");|' \
+	/tmp/sxbar/src/modules.c
 make -C /tmp/sxbar >/dev/null
 make -C /tmp/sxbar install PREFIX=/usr/local >/dev/null
 mkdir -p /root/.config
 cp /debrice/static/sxwmrc /root/.config/sxwmrc
 cp /debrice/static/sxbarc /root/.config/sxbarc
-# Pixel scanner: prints first x and count of the target color per dock
-# window. sxwm does not manage docks (they are absent from
+# Test-only module reproducing the hardware freeze deterministically: a
+# backgrounded child that inherits sxbar's popen pipe and holds it open —
+# the exact sb-forecast shape that froze the bar on hardware (a stale
+# weather cache + failing wttr.in makes that grandchild unbounded). Without
+# the single-line-read pin above, sxbar blocks in fgets on the first module
+# tick and every assertion below fails; with it, the bar keeps running.
+cat >>/root/.config/sxbarc <<'SXBARC_EOF'
+module.13.name       : hanger
+module.13.cmd        : sh -c 'sleep 300 & echo ok'
+module.13.enabled    : true
+module.13.interval   : 1
+SXBARC_EOF
+# Pixel scanner: prints the x-span (first, last) and count of the target
+# color per dock window. sxwm does not manage docks (they are absent from
 # _NET_CLIENT_LIST), so find the bar by scanning the root tree for a
 # _NET_WM_WINDOW_TYPE_DOCK window — the same thing sxwm's strut code does.
+# XGetImage reads the bar window's pixels directly (what `xwd` does
+# internally), so this asserts on the BAR itself, not on the EWMH atom.
 cat >/tmp/ws-scan.c <<'C_EOF'
 #include <stdio.h>
 #include <stdlib.h>
@@ -487,10 +524,10 @@ int main(int argc, char **argv) {
 		XWindowAttributes ga; XGetWindowAttributes(d, w, &ga);
 		XImage *img = XGetImage(d, w, 0, 0, ga.width, (unsigned)ga.height, AllPlanes, ZPixmap);
 		if (!img) continue;
-		int first = -1; unsigned long cnt = 0;
+		int first = -1, last = -1; unsigned long cnt = 0;
 		for (int x = 0; x < img->width; x++) for (int y = 0; y < img->height; y++)
-			if ((XGetPixel(img, x, y) & 0xffffff) == target) { if (first < 0) first = x; cnt++; break; }
-		printf("first=%d count=%lu\n", first, cnt);
+			if ((XGetPixel(img, x, y) & 0xffffff) == target) { if (first < 0) first = x; last = x; cnt++; break; }
+		printf("first=%d last=%d count=%lu\n", first, last, cnt);
 		XDestroyImage(img);
 	}
 	return 0;
@@ -514,9 +551,9 @@ pidof sxbar >/dev/null || { echo "sxbar NOT RUNNING (sxwmrc exec failed)"; exit 
 # Functional keybinding assertion: super+2 must switch to workspace 2. This
 # proves the shipped `workspace : mod + N : move N` directives are actually
 # grabbed and acted on — not merely parsed without error.
-# The bar assertion needs the highlight's x before the switch.
-ws_first() { /tmp/ws-scan :99 cc241d | sed -n 's/^first=\([0-9-]*\).*/\1/p' | head -1; }
-red0="$(ws_first)"
+# The bar assertion captures the bar's highlight span before the switch.
+ws_span() { /tmp/ws-scan :99 cc241d | sed -n 's/^first=\([0-9-]*\) last=\([0-9-]*\).*/\1 \2/p' | head -1; }
+span0="$(ws_span)"; f0="${span0% *}"; l0="${span0#* }"
 cur0="$(xprop -root _NET_CURRENT_DESKTOP | awk '{print $NF}')"
 xdotool key super+2
 sleep 1
@@ -524,16 +561,54 @@ cur1="$(xprop -root _NET_CURRENT_DESKTOP | awk '{print $NF}')"
 [ "$cur0" = "0" ] && [ "$cur1" = "1" ] \
 	|| { echo "WORKSPACE SWITCH FAILED: super+2 gave _NET_CURRENT_DESKTOP '$cur0' -> '$cur1'"; cat /tmp/sxwm.log; exit 1; }
 echo "WORKSPACE SWITCH OK (super+2: _NET_CURRENT_DESKTOP 0 -> 1)"
-# Bar tracking assertion: sxbar must repaint the active-workspace highlight
-# (#cc241d, the sxbarc active background) — it must exist and move right
-# from label 1's box to label 2's after the switch.
+# Bar tracking assertion: test the BAR, not the atom. Capture the bar
+# window's pixels and require the active-workspace highlight (#cc241d, the
+# sxbarc active background) to leave label 1's box entirely and appear on
+# the newly-active label's box — first red x strictly right of the old
+# span's last red x, which also proves the old label cleared. The previous
+# version of this check passed in Xvfb while hardware stayed frozen on
+# workspace 1: nothing reproduced the module-pipe freeze (sxbar reads
+# module popen pipes to EOF; sb-forecast backgrounds a retry job that
+# inherits the pipe — uint23/sxbar#19). The hanger module above now
+# reproduces that condition deterministically, and the pinned sxbar build
+# survives it.
 sleep 1
-red1="$(ws_first)"
-[ "${red0:--1}" -ge 0 ] \
-	|| { echo "BAR TRACKING FAILED: no active-workspace highlight painted (red first=$red0)"; exit 1; }
-[ "${red1:--1}" -gt "$red0" ] \
-	|| { echo "BAR TRACKING FAILED: highlight did not move on super+2 (red first $red0 -> $red1)"; exit 1; }
-echo "BAR TRACKING OK (active highlight moved x=$red0 -> x=$red1 on super+2)"
+span1="$(ws_span)"; f1="${span1% *}"; l1="${span1#* }"
+[ "${f0:--1}" -ge 0 ] \
+	|| { echo "BAR TRACKING FAILED: no active-workspace highlight painted (red span first=$f0)"; exit 1; }
+[ "${f1:--1}" -gt "${l0:--1}" ] \
+	|| { echo "BAR TRACKING FAILED: newly-active label's pixels did not change to the active color (red span $f0..$l0 -> $f1..$l1)"; exit 1; }
+echo "BAR TRACKING OK (active highlight moved x=$f0..$l0 -> x=$f1..$l1 on super+2)"
+# picom assertion: Debian 13's picom FATALs on a bare invocation with
+# "Backend not specified. You must choose one explicitly" — the exact bug
+# that shipped to hardware. Launch picom exactly as the rice's xprofile
+# autostart does (bare `picom`, config read from ~/.config/picom/picom.conf)
+# and assert the process survives instead of instantly exiting. Done last so
+# a running compositor cannot interfere with the bar pixel scans above.
+mkdir -p /root/.config/picom
+cp /debrice/static/picom.conf /root/.config/picom/picom.conf
+picom >/tmp/picom.log 2>&1 &
+picom_pid=$!
+sleep 3
+if ! kill -0 "$picom_pid" 2>/dev/null; then
+	if grep -q "Backend not specified" /tmp/picom.log; then
+		echo "PICOM FAILED: bare invocation died with 'Backend not specified' — deployed config not picked up"
+		cat /tmp/picom.log; exit 1
+	fi
+	# Any other death is an environment limitation, not the bug class under
+	# test: Xvfb may lack usable GLX even with mesa installed. Retry with
+	# the backend swapped to xrender in the TEST COPY — the assertion stays
+	# "our invocation does not instantly exit"; which backend Xvfb can
+	# drive is not what shipped broken.
+	sed -i 's/^backend = "glx";/backend = "xrender";/' /root/.config/picom/picom.conf
+	picom >/tmp/picom.log 2>&1 &
+	picom_pid=$!
+	sleep 3
+	kill -0 "$picom_pid" 2>/dev/null \
+		|| { echo "PICOM FAILED: does not survive even with xrender backend"; cat /tmp/picom.log; exit 1; }
+fi
+kill "$picom_pid" 2>/dev/null || true
+echo "PICOM OK (bare invocation survived; $(grep -m1 '^backend' /root/.config/picom/picom.conf))"
 kill %2 %1 2>/dev/null || true
 echo "X SMOKE OK"
 EOF

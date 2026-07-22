@@ -5,8 +5,9 @@
 # ~/.config/debrice-backup-<timestamp>/ so the script is safe to re-run.
 
 # deploy_dotfiles USER HOME — copy $DEBRICE_DOTFILES_SRC into HOME, then
-# overlay $DEBRICE_STATIC_SRC/sxwmrc and sxbarc into ~/.config and install
-# $DEBRICE_STATIC_SRC/ship.jpg as the default ~/.local/share/bg wallpaper.
+# overlay $DEBRICE_STATIC_SRC/sxwmrc and sxbarc into ~/.config, picom.conf
+# into ~/.config/picom/, and install $DEBRICE_STATIC_SRC/ship.jpg as the
+# default ~/.local/share/bg wallpaper.
 # USER may be empty (tests); then no chown/sudo -u is attempted.
 deploy_dotfiles() {
 	local name="$1" home="$2" src static ts backup rel
@@ -20,7 +21,7 @@ deploy_dotfiles() {
 	# Back up anything that would be overwritten (dotfiles tree + overlays).
 	{
 		(cd "$src" && find . -mindepth 1 \( -type f -o -type l \) -print)
-		printf './.config/sxwmrc\n./.config/sxbarc\n'
+		printf './.config/sxwmrc\n./.config/sxbarc\n./.config/picom/picom.conf\n'
 	} | while read -r rel; do
 		rel="${rel#./}"
 		if [ -e "$home/$rel" ] || [ -L "$home/$rel" ]; then
@@ -36,6 +37,13 @@ deploy_dotfiles() {
 	mkdir -p "$home/.config"
 	[ -f "$static/sxwmrc" ] && cp -f "$static/sxwmrc" "$home/.config/sxwmrc"
 	[ -f "$static/sxbarc" ] && cp -f "$static/sxbarc" "$home/.config/sxbarc"
+
+	# Overlay the picom config (Debian 13's picom FATALs without an
+	# explicit backend — see static/picom.conf).
+	if [ -f "$static/picom.conf" ]; then
+		mkdir -p "$home/.config/picom"
+		cp -f "$static/picom.conf" "$home/.config/picom/picom.conf"
+	fi
 
 	# Default wallpaper: static/ship.jpg replaces voidrice's default bg
 	# (a symlink to thiemeyer_road_to_samarkand.jpg). bg stays a symlink
@@ -55,6 +63,7 @@ deploy_dotfiles() {
 		done
 		[ -e "$home/.config/sxwmrc" ] && chown "$name:$name" "$home/.config/sxwmrc"
 		[ -e "$home/.config/sxbarc" ] && chown "$name:$name" "$home/.config/sxbarc"
+		[ -d "$home/.config/picom" ] && chown -R "$name:$name" "$home/.config/picom"
 		[ -d "$backup" ] && chown -R "$name:$name" "$backup"
 	fi
 	return 0
