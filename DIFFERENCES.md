@@ -129,8 +129,7 @@ _NET_CURRENT_DESKTOP and _NET_WM_STATE (verified in src/sxwm.c):
 - ueberzugpp: Debian ships the classic ueberzug instead (voidrice's lfub
   calls the `ueberzug` CLI directly, so functionality is identical).
 - zathura-pdf-mupdf: not in Debian; zathura-pdf-poppler provides PDF support.
-- fonts-libertinus: not in Debian; fonts-linuxlibertine installed instead
-  (texlive-full additionally brings the real libertinus into fontconfig).
+- fonts-libertinus: not in Debian; fonts-linuxlibertine installed instead.
 - gtk-theme-arc-gruvbox-git (AUR): replaced by apt arc-theme; GTK configs
   point at Arc-Dark (nearest maintained equivalent).
 - zsh-fast-syntax-highlighting-git (AUR): replaced by Debian's

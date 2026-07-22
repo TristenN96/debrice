@@ -136,38 +136,14 @@ export DEBIAN_FRONTEND=noninteractive
 
 # Lint and package-resolution checks never execute debrice.sh's own code
 # paths in order — only a real run surfaces "command not found" (unsourced
-# libraries), missing tools (sudo) and manifest-ordering bugs (build deps
-# after the G block). Run the script end-to-end with a trimmed manifest that
-# keeps the real structure (build deps BEFORE the G entries, apt entries on
-# both sides of them) but drops multi-GB packages like texlive-full.
-cat >/tmp/progs-e2e.csv <<'CSV'
-#TAG,NAME IN REPO (or git url),PURPOSE
-,sudo,"allows privilege escalation; debrice's own git build steps run through it."
-,bc,"is a mathematics language used for the dropdown calculator."
-,fzf,"is a fuzzy finder tool used for easy selection and location of files."
-,build-essential,"provides compilers and make for building software."
-,pkg-config,"locates library compile flags for builds."
-,libx11-dev,"is the X11 client library needed to build st, dmenu, sxwm and sxbar."
-,libxft-dev,"is the X FreeType library needed to build st, dmenu and sxbar."
-,libxinerama-dev,"is the Xinerama library needed to build dmenu, sxwm and sxbar."
-,libxcursor-dev,"is the X cursor library needed to build sxwm."
-,libfontconfig1-dev,"is the font configuration library needed to build st and sxbar."
-,libxext-dev,"is the X extensions library needed to build slock."
-,libxrandr-dev,"is the X resize-and-rotate library needed to build slock."
-,libharfbuzz-dev,"provides text shaping needed to build st with ligatures."
-G,https://github.com/uint23/sxbar.git,"serves as the modular status bar."
-G,https://github.com/lukesmithxyz/dmenu.git,"runs commands and provides a UI for selection."
-G,https://github.com/lukesmithxyz/st.git,"is Luke's custom build of suckless's terminal emulator."
-G,https://github.com/uint23/sxwm.git,"is the window manager."
-G,https://github.com/LukeSmithxyz/mutt-wizard.git,"is a light-weight terminal-based email system."
-G,https://git.suckless.org/slock,"allows you to lock your computer, and quickly unlock with your password."
-,moreutils,"provides chronic, sponge and other handy utilities."
-CSV
-
+# libraries), missing tools (sudo, dbus-launch) and manifest-ordering bugs
+# (build deps after the G block). Run the script end-to-end with the real
+# progs.csv: with TeX Live gone the manifest is small enough to use
+# untrimmed, so the test installs exactly what a user gets.
 rc=0
-DEBRICE_ASSUME_YES=1 PROGS_FILE=/tmp/progs-e2e.csv \
+DEBRICE_ASSUME_YES=1 \
 	DEBRICE_USER=debricetest DEBRICE_PASSWORD=testpass123 \
-	timeout 1800 bash /debrice/debrice.sh </dev/null >/tmp/runtime.log 2>&1 || rc=$?
+	timeout 2400 bash /debrice/debrice.sh </dev/null >/tmp/runtime.log 2>&1 || rc=$?
 cat /tmp/runtime.log
 [ "$rc" -eq 0 ] \
 	|| { echo "RUNTIME FAILED: debrice.sh exited with status $rc"; exit 1; }
@@ -179,6 +155,8 @@ grep -q "Installation summary" /tmp/runtime.log \
 	|| { echo "RUNTIME FAILED: installation summary missing — run did not reach finalization"; exit 1; }
 grep -qE "apt packages: +[0-9]+ installed, 0 failed" /tmp/runtime.log \
 	|| { echo "RUNTIME FAILED: apt packages failed during the run"; exit 1; }
+grep -qE "repo packages: +1 installed, 0 failed" /tmp/runtime.log \
+	|| { echo "RUNTIME FAILED: brave-browser (the R entry) failed during the run"; exit 1; }
 grep -qE "git builds: +6 installed" /tmp/runtime.log \
 	|| { echo "RUNTIME FAILED: summary does not show 6 git builds installed"; exit 1; }
 for b in sxwm sxbar st dmenu slock; do
@@ -192,7 +170,16 @@ command -v mw >/dev/null 2>&1 \
 # processing apt entries after the git builds.
 command -v sponge >/dev/null 2>&1 \
 	|| { echo "RUNTIME FAILED: apt entries after the G block were not installed"; exit 1; }
-echo "RUNTIME OK (end-to-end: prereqs, apt, 6 git builds, dotfiles, summary)"
+# Session dependency check: every command the deployed xinitrc/xprofile
+# invoke must resolve for the installed user (bare metal died at
+# "dbus-launch: not found"; Debian splits dbus-launch into dbus-x11).
+sudo -u debricetest /debrice/scripts/check-session-deps.sh \
+	--extra-path /home/debricetest/.local/bin \
+	/home/debricetest/.config/x11/xinitrc \
+	/home/debricetest/.config/x11/xprofile \
+	/home/debricetest/.xprofile \
+	|| { echo "RUNTIME FAILED: session dependency check"; exit 1; }
+echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps)"
 EOF
 }
 
@@ -450,6 +437,16 @@ sleep 1
 pidof sxwm >/dev/null || { echo "sxwm NOT RUNNING"; cat /tmp/sxwm.log; exit 1; }
 grep -q "using configuration file" /tmp/sxwm.log \
 	|| { echo "sxwm DID NOT PARSE CONFIG"; cat /tmp/sxwm.log; exit 1; }
+# Functional keybinding assertion: super+2 must switch to workspace 2. This
+# proves the shipped `workspace : mod + N : move N` directives are actually
+# grabbed and acted on — not merely parsed without error.
+cur0="$(xprop -root _NET_CURRENT_DESKTOP | awk '{print $NF}')"
+xdotool key super+2
+sleep 1
+cur1="$(xprop -root _NET_CURRENT_DESKTOP | awk '{print $NF}')"
+[ "$cur0" = "0" ] && [ "$cur1" = "1" ] \
+	|| { echo "WORKSPACE SWITCH FAILED: super+2 gave _NET_CURRENT_DESKTOP '$cur0' -> '$cur1'"; cat /tmp/sxwm.log; exit 1; }
+echo "WORKSPACE SWITCH OK (super+2: _NET_CURRENT_DESKTOP 0 -> 1)"
 kill %2 %1 2>/dev/null || true
 echo "X SMOKE OK"
 EOF

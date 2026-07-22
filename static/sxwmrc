@@ -1,9 +1,10 @@
 # debrice sxwmrc — Luke Smith's dwm keybindings (LukeSmithxyz/dwm config.h,
 # upstream ee3354d) ported to sxwm (https://github.com/uint23/sxwm).
 #
-# mod = super (Mod4), matching dwm's MODKEY. `bind` runs an external command,
-# `call` triggers an internal sxwm function, `workspace`/`scratchpad` are
-# sxwm's native workspace/scratchpad actions. Commands needing a shell
+# mod = super (Mod4), matching dwm's MODKEY. Per docs/sxwm.md there are three
+# binding directives: `bind` (quoted action = external command, bare action =
+# internal function from the docs' function table), and the dedicated
+# `workspace`/`scratchpad` directives. Commands needing a shell
 # (pipes, $(...), &&, ||) are wrapped in sh -c '...'.
 #
 # Reload this file with super+F5 (sxwm's default super+r reload was moved
@@ -39,12 +40,12 @@ exec : "sxbar"
 ####################### keybindings #######################
 
 # Focus movement (dwm focusstack).
-call : mod + j : focus_next
-call : mod + k : focus_prev
+bind : mod + j : focus_next
+bind : mod + k : focus_prev
 # mod+v (focus master) has no sxwm equivalent — see DIFFERENCES.md.
 # Stack movement (dwm pushstack; sxwm rotates the stack).
-call : mod + shift + j : master_next
-call : mod + shift + k : master_prev
+bind : mod + shift + j : master_next
+bind : mod + shift + k : master_prev
 
 # Emoji picker.
 bind : mod + grave : "dmenuunicode"
@@ -81,7 +82,7 @@ bind : mod + shift + equal : "wpctl set-volume @DEFAULT_AUDIO_SINK@ 15%+"
 bind : mod + BackSpace : "sysact"
 bind : mod + shift + BackSpace : "sysact"
 bind : mod + shift + q : "sysact"
-call : mod + q : close_window
+bind : mod + q : close_window
 
 # Programs.
 bind : mod + w : "brave"
@@ -93,8 +94,8 @@ bind : mod + shift + r : "st -e htop"
 
 # Layouts: sxwm has a single master-stack layout plus monocle and global
 # floating. The other six dwm layouts have no equivalent — DIFFERENCES.md.
-call : mod + shift + u : toggle_monocle
-call : mod + shift + f : global_floating
+bind : mod + shift + u : toggle_monocle
+bind : mod + shift + f : global_floating
 # mod+o / mod+shift+o (incnmaster): no equivalent — DIFFERENCES.md.
 
 # Music player.
@@ -110,13 +111,13 @@ bind : mod + period : "mpc next"
 bind : mod + shift + period : "mpc repeat"
 
 # Previous workspace (dwm's mod+Tab / mod+backslash "view").
-call : mod + Tab : switch_previous_workspace
-call : mod + backslash : switch_previous_workspace
+bind : mod + Tab : switch_previous_workspace
+bind : mod + backslash : switch_previous_workspace
 
 # Gaps: only stepwise adjust exists in sxwm; togglegaps/defaultgaps/
 # togglesmartgaps are dropped — DIFFERENCES.md.
-call : mod + z : increase_gaps
-call : mod + x : decrease_gaps
+bind : mod + z : increase_gaps
+bind : mod + x : decrease_gaps
 
 # mod+s (togglesticky): no sticky windows in sxwm — DIFFERENCES.md.
 
@@ -125,8 +126,8 @@ bind : mod + d : "dmenu_run"
 bind : mod + shift + d : "passmenu"
 
 # Fullscreen / floating.
-call : mod + f : fullscreen
-call : mod + shift + space : toggle_floating
+bind : mod + f : fullscreen
+bind : mod + shift + space : toggle_floating
 
 # Tag cycling (dwm shiftview) via wmctrl; sxwm honors _NET_CURRENT_DESKTOP.
 # shifttag (send window along) has no analog — DIFFERENCES.md.
@@ -136,8 +137,8 @@ bind : mod + Page_Up : "sh -c 'wmctrl -s $(( ($(xdotool get_desktop) + 8) % 9 ))
 bind : mod + Page_Down : "sh -c 'wmctrl -s $(( ($(xdotool get_desktop) + 1) % 9 ))'"
 
 # Master area resize (dwm setmfact).
-call : mod + h : master_decrease
-call : mod + l : master_increase
+bind : mod + h : master_decrease
+bind : mod + l : master_increase
 
 # Scratchpads. sxwm scratchpads are created from the focused window
 # (create), then shown/hidden (toggle). Luke's original keys toggle;
@@ -161,10 +162,10 @@ bind : mod + m : "st -e ncmpcpp"
 bind : mod + shift + m : "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
 
 # Monitors (dwm focusmon/tagmon).
-call : mod + Left : focus_prev_mon
-call : mod + Right : focus_next_mon
-call : mod + shift + Left : move_prev_mon
-call : mod + shift + Right : move_next_mon
+bind : mod + Left : focus_prev_mon
+bind : mod + Right : focus_next_mon
+bind : mod + shift + Left : move_prev_mon
+bind : mod + shift + Right : move_next_mon
 
 # Snippet typer.
 bind : mod + Insert : "sh -c 's=$(grep -v ^# ~/.local/share/larbs/snippets | dmenu -i -l 50); xdotool type ${s%% *}'"
@@ -175,7 +176,7 @@ bind : mod + F2 : "tutorialvids"
 bind : mod + F3 : "displayselect"
 bind : mod + F4 : "st -e pulsemixer"
 # dwm's xrdb-refresh analog: reload sxwmrc.
-call : mod + F5 : reload_config
+bind : mod + F5 : reload_config
 bind : mod + F6 : "torwrap"
 bind : mod + F7 : "td-toggle"
 bind : mod + F8 : "mailsync"

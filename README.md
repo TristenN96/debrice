@@ -2,10 +2,10 @@
 
 **debrice** is a port of [Luke Smith's LARBS](https://larbs.xyz) to
 **Debian 13 (Trixie)**, with [sxwm](https://github.com/uint23/sxwm) replacing
-dwm, [sxbar](https://github.com/uint23/sxbar) replacing dwmblocks,
-**Brave** replacing Librewolf, and a **complete TeX Live** installed by
-default. Luke's dotfiles (voidrice), Luke's keybindings, Luke's st/dmenu
-builds and Luke's `~/.local/bin` scripts are all here.
+dwm, [sxbar](https://github.com/uint23/sxbar) replacing dwmblocks, and
+**Brave** replacing Librewolf. Luke's dotfiles (voidrice), Luke's
+keybindings, Luke's st/dmenu builds and Luke's `~/.local/bin` scripts are all
+here.
 
 ## Installation
 
@@ -40,7 +40,7 @@ instead of hanging on an invisible prompt.
 - Luke's voidrice dotfiles deployed verbatim except the documented
   adaptations in [CHANGES-FROM-VOIDRICE.md](CHANGES-FROM-VOIDRICE.md)
 - Brave (stable) from Brave's official apt repository
-- Full TeX Live + latexmk + biber; groff for the `super+F1` cheat sheet
+- groff for the `super+F1` cheat sheet
 - mutt-wizard + neomutt/isync/msmtp/pass for terminal email
 - Everything else from LARBS's manifest: lf, neovim, mpv, mpd/ncmpcpp,
   newsboat, zathura, nsxiv, maim, yt-dlp, fzf, picom, dunst, and more
@@ -186,9 +186,6 @@ option in the sysact menu (`Mod+BackSpace`) sends it too.
   `/etc/apt/sources.list.d/`). No arkenfox/user.js dance; Brave needs none.
 - **apt replaces pacman/AUR** — zero pacman/yay/paru references anywhere;
   packages come from Debian's repos, Brave's repo, or git+make.
-- **TeX Live is installed by default** — `texlive-full` plus `latexmk` and
-  `biber`. It's several gigabytes; remove those three lines from
-  [progs.csv](progs.csv) before running if you don't want it.
 - User is created in the **sudo** group (Debian) instead of wheel.
 - `bat` is symlinked to Debian's `batcat`; `picom` replaces the dead
   xcompmgr; `ueberzug` (not ueberzugpp) drives lf previews;
@@ -211,6 +208,7 @@ static/larbs.mom        the super+F1 cheat sheet, ported
 static/dwm-config.h     Luke's config.h (vendored) — checker source of truth
 dotfiles/               vendored voidrice fork (adapted files only)
 scripts/check-binds.sh  keybinding coverage test
+scripts/check-session-deps.sh  session-file dependency check
 tests/docker-test.sh    debian:trixie container tests (static local fallback)
 ```
 
@@ -223,11 +221,14 @@ scripts/check-binds.sh          # keybinding coverage alone
 
 With working docker, every stage runs in a `debian:trixie` container:
 shellcheck lint, non-interactive preflight, an end-to-end runtime stage that
-executes `debrice.sh` with a trimmed manifest and asserts the git-built
-binaries (`sxwm`, `sxbar`, `st`, `dmenu`, `slock`, `mw`) actually landed,
-package resolution via apt-cache for every `,`/`R` entry, compilation of
-st/dmenu/slock/sxwm/sxbar with only the declared build deps, an idempotency
-run, and an Xvfb smoke test of sxwm + config reload.
+executes `debrice.sh` with the real `progs.csv` and asserts the git-built
+binaries (`sxwm`, `sxbar`, `st`, `dmenu`, `slock`, `mw`) actually landed and
+that every command the deployed session files invoke resolves on PATH
+(`scripts/check-session-deps.sh`), package resolution via apt-cache for every
+`,`/`R` entry, compilation of st/dmenu/slock/sxwm/sxbar with only the
+declared build deps, an idempotency run, and an Xvfb smoke test of sxwm that
+also asserts `super+2` really switches to workspace 2
+(`_NET_CURRENT_DESKTOP` via `xprop -root`).
 Without docker the script degrades to static local verification (Trixie and
 Brave package indices, host builds, a fake-HOME deploy, and config
 validation with sxwm's/sxbar's own parsers) and says so loudly.

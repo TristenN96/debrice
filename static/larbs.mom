@@ -29,8 +29,8 @@ FAQs are at the end of this document.
 .HEADING 1 "Welcome!"
 .PP
 debrice is Luke Smith's LARBS setup, ported to Debian 13 (Trixie).
-The window manager is \fBsxwm\fP (with \fBsxbar\fP as the status bar),
-the browser is \fBBrave\fP, and a complete TeX Live is installed by default.
+The window manager is \fBsxwm\fP (with \fBsxbar\fP as the status bar) and
+the browser is \fBBrave\fP.
 Everything else \(en the terminal, the scripts, the bindings, the workflow \(en
 is the LARBS you know.
 .HEADING 2 "Basic goals and principles of this system:"

@@ -1,7 +1,7 @@
 # DECISIONS.md — running log of judgment calls
 
 debrice is a port of Luke Smith's LARBS (Arch) to Debian 13 Trixie, with sxwm
-replacing dwm, Brave replacing Librewolf, and full TeX Live. Every non-obvious
+replacing dwm and Brave replacing Librewolf. Every non-obvious
 judgment call made while building this repo is logged here, newest last.
 
 Reference sources were cloned to /tmp/debrice-ref/ and studied before any code
@@ -286,3 +286,40 @@ runtime stage can drive debrice.sh end-to-end with a trimmed manifest
 /etc/sudoers.d and /etc/modprobe.d are not guaranteed to exist (both absent
 in the debian:trixie image, and sudoers.d absent on any sudo-less system) —
 mkdir -p before writing to them.
+
+## D27 — Bare-metal #3: dbus-x11, TeX Live dropped, sxwm docs audit
+Three user-directed fixes after the third bare-metal run:
+1. startx died at "dbus-launch: not found" — Debian splits dbus-launch (and
+   dbus-update-activation-environment) out of dbus into dbus-x11. Added
+   `,dbus-x11`; also `,openssh-client`, because the xinitrc execs the WM
+   through `dbus-launch ssh-agent sxwm` and ssh-agent is not guaranteed
+   either (both absent in the debian:trixie image). New guard:
+   scripts/check-session-deps.sh extracts every external command the
+   deployed xinitrc/xprofile invoke and asserts each resolves on PATH; it
+   runs inside the e2e container against the installed user's deployed
+   files, so a missing session binary fails the build, not the user's
+   first startx.
+2. texlive-full/latexmk/biber removed from progs.csv (user decision; groff
+   stays for the cheat sheet). With the multi-GB packages gone, the docker
+   runtime stage no longer trims the manifest — it runs the real progs.csv
+   end-to-end, so the test installs exactly what a user gets, including the
+   Brave R entry.
+3. sxwm keybinding audit against docs/sxwm.md (re-read in full) and the
+   parser source. Findings:
+   - The workspace section ALREADY used the exact upstream dedicated
+     syntax (`workspace : mod + N : move N` / `workspace : mod + shift + N
+     : swap N`) — confirmed against docs and parser.c (TYPE_WS_CHANGE /
+     TYPE_WS_MOVE). No change needed there.
+   - The `call` directive used for all internal-function bindings is NOT in
+     the docs; parser.c accepts it as an undocumented alias of `bind`, but
+     docs are the contract — all 20 lines switched to `bind : … : func`
+     (bare action = internal function; identical parse result).
+   - Every function name used was verified against the docs' function
+     table / parser call_table: focus_next/prev, master_next/prev,
+     master_increase/decrease, close_window, toggle_monocle,
+     global_floating, fullscreen, toggle_floating, increase/decrease_gaps,
+     switch_previous_workspace, focus/move_next/prev_mon, reload_config.
+     All exist with the exact names used.
+   - The Xvfb stage gained a functional assertion: xdotool sends super+2
+     and `_NET_CURRENT_DESKTOP` must move 0 → 1 (xprop -root), proving the
+     workspace directives are grabbed and acted on, not merely parsed.

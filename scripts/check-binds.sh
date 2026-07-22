@@ -5,7 +5,7 @@
 # Parses the keys[] array of Luke's dwm config.h (vendored at
 # static/dwm-config.h, upstream ee3354d), expands the STACKKEYS/TAGKEYS
 # macros, and asserts that every binding's mod+key combo is either
-#   a) present in static/sxwmrc (bind/call/workspace/scratchpad line), or
+#   a) present in static/sxwmrc (bind/workspace/scratchpad line), or
 #   b) listed in DIFFERENCES.md as intentionally dropped.
 # For dwm spawn bindings that are present, it additionally asserts the
 # spawned command's first token appears in the sxwmrc action (with a small
@@ -105,7 +105,7 @@ build_sxwm_tables() {
 		combo="$(sxwmrc_combo "$line")"
 		SXWM_SET["$combo"]=1
 		SXWM_ACT["$combo"]="$line"
-	done < <(grep -E '^\s*(bind|call|workspace|scratchpad)\s*:' "$SXWMRC")
+	done < <(grep -E '^\s*(bind|workspace|scratchpad)\s*:' "$SXWMRC")
 }
 
 # Collect every dwm binding as "combo|first-token-or-empty".

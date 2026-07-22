@@ -2,7 +2,7 @@
 
 # debrice — Debian ricing bootstrap.
 # A port of Luke Smith's LARBS to Debian 13 Trixie, with sxwm (and sxbar)
-# replacing dwm (and dwmblocks), Brave replacing Librewolf, and full TeX Live.
+# replacing dwm (and dwmblocks) and Brave replacing Librewolf.
 # License: GNU GPLv3 (like LARBS itself)
 
 # Harden invocation: if executed via `sh` (dash on Debian), re-exec with bash.
@@ -93,7 +93,7 @@ welcomemsg() {
 	printf '%s\n' \
 		"This script will automatically install a fully-featured Linux desktop:" \
 		"the LARBS setup by Luke Smith, ported to Debian 13 (Trixie), with the" \
-		"sxwm window manager, the Brave browser and a complete TeX Live installation." \
+		"sxwm window manager and the Brave browser." \
 		""
 	confirm "Be sure this computer has a working internet connection and is running Debian 13 (Trixie). Continue?"
 }
@@ -137,7 +137,7 @@ usercheck() {
 }
 
 preinstallmsg() {
-	confirm "The rest of the installation will now be totally automated (TeX Live alone is large, so it will take some time). Begin installation now?" ||
+	confirm "The rest of the installation will now be totally automated (it will take some time). Begin installation now?" ||
 		exit 1
 }
 
