@@ -12,11 +12,11 @@ are added at deploy time from `static/` and noted at the bottom.
 - `.config/x11/xprofile` — autostart `xcompmgr` → `picom`: xcompmgr is dead upstream; picom is the maintained replacement.
 - `.config/x11/xprofile` (the file `~/.xprofile` symlinks to) — dropped `pipewire` from `autostart`: PipeWire runs as systemd user units enabled at install time (`systemctl --global enable pipewire pipewire-pulse wireplumber`), not as a session-spawned process.
 - `.config/shell/aliasrc` — dropped `pacman` from the sudo-alias loop and `p="pacman"` → `p="sudo apt"`: repo must contain zero pacman references (apt-only).
-- `.config/shell/bm-files` — `cfb` bookmark now points to `~/.config/sxbarc`: bar config moved from dwmblocks' config.h to sxbarc.
+- `.config/shell/bm-files` — `cfb` bookmark now points to `~/.config/sxbar/sxbarc`: bar config moved from dwmblocks' config.h to sxbarc.
 - `.config/gtk-2.0/gtkrc-2.0` — theme `Arc-Gruvbox` → `Arc-Dark`: AUR theme unavailable; arc-theme (apt) is the nearest equivalent.
 - `.config/gtk-3.0/settings.ini` — same theme change as above.
 - `.config/zsh/.zshrc` — sources `/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh`: Debian's zsh-syntax-highlighting package path replaces Arch's fast-syntax-highlighting AUR path.
-- `.config/nvim/init.vim` — dwmblocks-recompile autocmd now restarts sxbar on `~/.config/sxbarc` writes: bar program changed.
+- `.config/nvim/init.vim` — dwmblocks-recompile autocmd now restarts sxbar on `~/.config/sxbar/sxbarc` writes: bar program changed.
 - `.config/ncmpcpp/config` — removed `execute_on_song_change`/`execute_on_player_state_change` dwmblocks-signal hooks: sxbar has no signal API and polls sb-music by interval.
 - `.local/bin/sysact` — `WM="sxwm"`; "renew" sends `xdotool key super+F5` (sxwm reload_config) instead of SIGHUP, which would kill sxwm (it installs no SIGHUP handler); dropped the volume bar-signal in `lock()`.
 - `.local/bin/setbg` — removed the `pidof dwm && xdotool key super+F5` line: sxwm does not theme from Xresources, so there is no WM color scheme to refresh.
@@ -58,6 +58,6 @@ are added at deploy time from `static/` and noted at the bottom.
 ## Added at deploy time (not voidrice files)
 
 - `~/.config/sxwmrc` — copied from `static/sxwmrc`: Luke's dwm keybindings ported to sxwm (new file).
-- `~/.config/sxbarc` — copied from `static/sxbarc`: sxbar modules wired to Luke's `sb-*` statusbar scripts (new file).
+- `~/.config/sxbar/sxbarc` — copied from `static/sxbarc` to sxbar's preferred config path (`src/parser.c` `get_config_path()` searches `$XDG_CONFIG_HOME/sxbar/sxbarc`, then `~/.config/sxbar/sxbarc`, then the legacy `~/.config/sxbarc`, then `/usr/local/share/sxbarc` — the last installed by `make install` from upstream's `default_sxbarc`, so a missing or shadowed user config would silently render the default module set). A stale legacy-path `~/.config/sxbarc` from earlier debrice deploys is backed up and removed. sxbar modules wired to Luke's `sb-*` statusbar scripts (new file).
 - `~/.local/share/ship.jpg` + `~/.local/share/bg` — new default wallpaper: `bg` now points at the shipped `static/ship.jpg` instead of voidrice's `thiemeyer_road_to_samarkand.jpg`, so the stock `setbg` mechanism picks it up unchanged.
 - `~/.config/picom/picom.conf` — copied from `static/picom.conf` (`backend = "glx"`, `vsync = true`): Debian 13's picom FATALs on the rice's bare `picom` autostart with "Backend not specified. You must choose one explicitly". A deployed config (rather than editing the autostart to `picom --backend glx`) keeps voidrice's xprofile line verbatim and fixes every picom invocation, not just the autostart one.

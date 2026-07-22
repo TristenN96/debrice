@@ -80,7 +80,7 @@ On the right, you'll see various system status notifiers, the date, volume, even
 Each module on the right of the statusbar is a script located in \f(CW~/.local/bin/statusbar/\fP.
 You can see what they do and modify them from there.
 .PP
-The status bar itself is \fBsxbar\fP, configured in \f(CW~/.config/sxbarc\fP.
+The status bar itself is \fBsxbar\fP, configured in \f(CW~/.config/sxbar/sxbarc\fP.
 There you can add, remove and reorder modules and set how often each refreshes.
 Note that unlike dwmblocks, sxbar modules cannot react to clicks; they refresh on their timers.
 .HEADING 3 "HiDPI and 4K Displays"
@@ -286,7 +286,7 @@ would expect.
 Dotfiles/settings files are located in \f(CW~/.config/\fP.
 .PP
 sxwm and sxbar are configured with plain text files: \f(CW~/.config/sxwmrc\fP
-and \f(CW~/.config/sxbarc\fP. Edit them and press \f(CWMod+F5\fP to reload sxwm;
+and \f(CW~/.config/sxbar/sxbarc\fP. Edit them and press \f(CWMod+F5\fP to reload sxwm;
 vim restarts sxbar automatically when you save its config.
 .PP
 Suckless programs, st (the terminal) and dmenu among others do not have
@@ -316,7 +316,7 @@ The script \f(CWsetbg\fP, if run on an image will set it as the persistent backg
 When using the file manager, you can simply hover over an image name and type \f(CWb\fP and this will run \f(CWsetbg\fP.
 .HEADING 2 "How I change the colorscheme?"
 .PP
-The window manager and bar colors live in \f(CW~/.config/sxwmrc\fP and \f(CW~/.config/sxbarc\fP (reload with \f(CWMod+F5\fP after editing).
+The window manager and bar colors live in \f(CW~/.config/sxwmrc\fP and \f(CW~/.config/sxbar/sxbarc\fP (reload with \f(CWMod+F5\fP after editing).
 The terminal colors live in \f(CW~/.config/x11/xresources\fP, which lists several color schemes you can activate or extend; vim updates them automatically on save, and there is a line in \f(CW~/.config/x11/xprofile\fP you can uncomment to load them on login.
 .PP
 Or, if you want to use \f(CWwal\fP to automatically generate colorschemes from your wallpapers, just install it and \f(CWsetbg\fP will automatically detect and run it on startup and wallpaper change.

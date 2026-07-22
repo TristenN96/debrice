@@ -212,6 +212,14 @@ command -v picom >/dev/null 2>&1 \
 # without an explicit backend, so the deploy must land the pinned config.
 grep -q '^backend = "glx";' /home/debricetest/.config/picom/picom.conf \
 	|| { echo "RUNTIME FAILED: ~/.config/picom/picom.conf not deployed"; exit 1; }
+# sxbar config must land at upstream's PREFERRED path: get_config_path()
+# checks ~/.config/sxbar/sxbarc before the legacy ~/.config/sxbarc and
+# falls through to /usr/local/share/sxbarc (installed by make install) —
+# a config at the wrong path silently renders the default module set.
+[ -f /home/debricetest/.config/sxbar/sxbarc ] \
+	|| { echo "RUNTIME FAILED: ~/.config/sxbar/sxbarc not deployed"; exit 1; }
+[ ! -e /home/debricetest/.config/sxbarc ] \
+	|| { echo "RUNTIME FAILED: legacy ~/.config/sxbarc still present"; exit 1; }
 echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps, pipewire units, wallpaper, st alpha, picom config)"
 EOF
 }
@@ -456,7 +464,7 @@ apt-get update -qq
 apt-get install -y -qq git build-essential pkg-config xvfb x11-utils \
 	xdotool libx11-dev libxinerama-dev libxcursor-dev \
 	libxft-dev libfontconfig1-dev fonts-dejavu-core \
-	picom libgl1-mesa-dri >/dev/null
+	picom libgl1-mesa-dri strace >/dev/null
 git clone --depth 1 -q https://github.com/uint23/sxwm.git /tmp/sxwm
 make -C /tmp/sxwm >/dev/null
 make -C /tmp/sxwm install PREFIX=/usr/local >/dev/null
@@ -476,16 +484,16 @@ sed -i \
 	/tmp/sxbar/src/modules.c
 make -C /tmp/sxbar >/dev/null
 make -C /tmp/sxbar install PREFIX=/usr/local >/dev/null
-mkdir -p /root/.config
+mkdir -p /root/.config/sxbar
 cp /debrice/static/sxwmrc /root/.config/sxwmrc
-cp /debrice/static/sxbarc /root/.config/sxbarc
+cp /debrice/static/sxbarc /root/.config/sxbar/sxbarc
 # Test-only module reproducing the hardware freeze deterministically: a
 # backgrounded child that inherits sxbar's popen pipe and holds it open —
 # the exact sb-forecast shape that froze the bar on hardware (a stale
 # weather cache + failing wttr.in makes that grandchild unbounded). Without
 # the single-line-read pin above, sxbar blocks in fgets on the first module
 # tick and every assertion below fails; with it, the bar keeps running.
-cat >>/root/.config/sxbarc <<'SXBARC_EOF'
+cat >>/root/.config/sxbar/sxbarc <<'SXBARC_EOF'
 module.13.name       : hanger
 module.13.cmd        : sh -c 'sleep 300 & echo ok'
 module.13.enabled    : true
@@ -548,6 +556,22 @@ pidof sxwm >/dev/null || { echo "sxwm NOT RUNNING"; cat /tmp/sxwm.log; exit 1; }
 # exists and exec succeeds, the banner never flushes. The super+2 switch
 # below is the stronger proof that the shipped config parsed.
 pidof sxbar >/dev/null || { echo "sxbar NOT RUNNING (sxwmrc exec failed)"; exit 1; }
+# Config path assertion: sxbar prints NOTHING about which config it loads
+# (its only config message, "sxbar: cannot open config", fires solely when
+# fopen fails), and its search order — $XDG_CONFIG_HOME/sxbar/sxbarc, then
+# ~/.config/sxbar/sxbarc (preferred), then ~/.config/sxbarc (legacy), then
+# /usr/local/share/sxbarc — ends at the upstream default that make install
+# installs, so a config that is not found fails SILENTLY onto the wrong
+# module set. Restart the bar under strace and assert from its openat
+# calls that it opened the deployed file at the preferred path.
+kill "$(pidof sxbar)"
+sleep 1
+strace -f -e trace=openat -o /tmp/sxbar.strace sxbar >/dev/null 2>&1 &
+sleep 3
+pidof sxbar >/dev/null || { echo "sxbar NOT RUNNING under strace"; exit 1; }
+grep -q '"/root/.config/sxbar/sxbarc"' /tmp/sxbar.strace \
+	|| { echo "CONFIG PATH FAILED: sxbar did not open the deployed config"; grep -a sxbarc /tmp/sxbar.strace; exit 1; }
+echo "CONFIG PATH OK (sxbar opened /root/.config/sxbar/sxbarc)"
 # Functional keybinding assertion: super+2 must switch to workspace 2. This
 # proves the shipped `workspace : mod + N : move N` directives are actually
 # grabbed and acted on — not merely parsed without error.
@@ -609,6 +633,7 @@ if ! kill -0 "$picom_pid" 2>/dev/null; then
 fi
 kill "$picom_pid" 2>/dev/null || true
 echo "PICOM OK (bare invocation survived; $(grep -m1 '^backend' /root/.config/picom/picom.conf))"
+kill "$(pidof sxbar)" 2>/dev/null || true
 kill %2 %1 2>/dev/null || true
 echo "X SMOKE OK"
 EOF
@@ -648,9 +673,9 @@ stage_parsecheck() {
 	note "Stage: config parse validation with upstream parsers (no-X fallback)"
 	local work="$BUILDROOT/parsecheck"
 	rm -rf "$work"
-	mkdir -p "$work/home/.config" "$work/src-sxwm" "$work/src-sxbar"
+	mkdir -p "$work/home/.config/sxbar" "$work/src-sxwm" "$work/src-sxbar"
 	cp "$REPO/static/sxwmrc" "$work/home/.config/sxwmrc"
-	cp "$REPO/static/sxbarc" "$work/home/.config/sxbarc"
+	cp "$REPO/static/sxbarc" "$work/home/.config/sxbar/sxbarc"
 	[ -d /tmp/debrice-build-sxwm/src ] || {
 		git clone --depth 1 -q https://github.com/uint23/sxwm.git /tmp/debrice-build-sxwm \
 			|| die "cannot clone sxwm for parse check"
@@ -711,7 +736,7 @@ EOF
 	printf '%s\n' "$out"
 	printf '%s' "$out" | grep -E "unknown|invalid|bad key|missing|too many" \
 		&& die "sxwmrc: parser reported errors"
-	out="$("$work/sxbar-parsecheck" "$work/home/.config/sxbarc" 2>&1)" \
+	out="$("$work/sxbar-parsecheck" "$work/home/.config/sxbar/sxbarc" 2>&1)" \
 		|| { echo "$out"; die "sxbarc: parser returned failure"; }
 	printf '%s\n' "$out"
 	printf '%s' "$out" | grep -E "unknown|invalid|cannot" \

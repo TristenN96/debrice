@@ -435,3 +435,22 @@ Bare-metal run #4 surfaced two bugs the suite did not catch:
    newly-active label's box after super+2. DIFFERENCES.md §7 corrected.
    Residual uncovered class (module hangs before printing anything) is
    documented there.
+
+## D33 — sxbarc moved to sxbar's preferred config path; path asserted via strace
+Follow-up to D32: the config-PATH itself had never been verified. Source
+check (src/parser.c get_config_path) shows sxbar prints NOTHING about which
+config it loads (its only message fires when fopen fails) and searches
+$XDG_CONFIG_HOME/sxbar/sxbarc, then ~/.config/sxbar/sxbarc ("new preferred
+path"), then ~/.config/sxbarc (legacy), then /usr/local/share/sxbarc — the
+last populated by make install from upstream's default_sxbarc. debrice
+deployed to the legacy path: worked, but silently lost to any
+preferred-path file and silently fell through to the upstream default if
+missing (bar renders the WRONG module set with no error — exactly the
+"modules not rendering at all" failure shape). deploy_dotfiles now installs
+to ~/.config/sxbar/sxbarc, backs up and removes a stale legacy-path file,
+and every reference moved with it (nvim restart autocmd, cfb bookmark,
+larbs.mom, docs). The Xvfb stage restarts the bar under
+`strace -f -e trace=openat` and asserts from the syscall log that sxbar
+opened /root/.config/sxbar/sxbarc — a banner capture is impossible because
+no banner exists. The runtime stage asserts the file lands at the
+preferred path and that no legacy-path file remains.

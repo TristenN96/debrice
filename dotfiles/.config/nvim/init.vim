@@ -123,7 +123,7 @@ colorscheme vim
 	autocmd BufRead,BufNewFile Xresources,Xdefaults,xresources,xdefaults set filetype=xdefaults
 	autocmd BufWritePost Xresources,Xdefaults,xresources,xdefaults !xrdb %
 " Restart sxbar on config edit.
-	autocmd BufWritePost ~/.config/sxbarc !killall -q sxbar;setsid -f sxbar
+	autocmd BufWritePost ~/.config/sxbar/sxbarc !killall -q sxbar;setsid -f sxbar
 
 " Turns off highlighting on the bits of code that are changed, so the line that is changed is highlighted but the actual text that has changed stands out on the line and is readable.
 if &diff
