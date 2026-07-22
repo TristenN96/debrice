@@ -8,8 +8,9 @@ are added at deploy time from `static/` and noted at the bottom.
 ## Adapted files
 
 - `.config/x11/xinitrc` — `dbus-launch ssh-agent dwm` → `… sxwm`: window manager changed.
-- `.config/shell/profile` — `BROWSER="librewolf"` → `"brave"`: default browser changed.
+- `.config/shell/profile` — `BROWSER="librewolf"` → `"brave-browser"`: default browser changed; Debian's brave package ships `/usr/bin/brave-browser` (no `brave` binary).
 - `.config/x11/xprofile` — autostart `xcompmgr` → `picom`: xcompmgr is dead upstream; picom is the maintained replacement.
+- `.config/x11/xprofile` (the file `~/.xprofile` symlinks to) — dropped `pipewire` from `autostart`: PipeWire runs as systemd user units enabled at install time (`systemctl --global enable pipewire pipewire-pulse wireplumber`), not as a session-spawned process.
 - `.config/shell/aliasrc` — dropped `pacman` from the sudo-alias loop and `p="pacman"` → `p="sudo apt"`: repo must contain zero pacman references (apt-only).
 - `.config/shell/bm-files` — `cfb` bookmark now points to `~/.config/sxbarc`: bar config moved from dwmblocks' config.h to sxbarc.
 - `.config/gtk-2.0/gtkrc-2.0` — theme `Arc-Gruvbox` → `Arc-Dark`: AUR theme unavailable; arc-theme (apt) is the nearest equivalent.

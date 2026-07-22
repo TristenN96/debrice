@@ -339,7 +339,7 @@ apt-get update >/dev/null ||
 # after bootstraprepo() clones the repo.
 say "Installing script prerequisites..."
 for x in curl ca-certificates git gnupg zsh; do
-	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$x" >/dev/null ||
+	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -o Acquire::Retries=3 "$x" >/dev/null ||
 		error "command failed: apt-get install -y --no-install-recommends $x (see apt output above). Generic hint: run as root, on Debian 13, with a working internet connection."
 done
 
@@ -416,6 +416,14 @@ sudo -u "$name" mkdir -p "/home/$name/.config/mpd/playlists/"
 
 # Ensure a dbus machine id exists.
 command -v dbus-uuidgen >/dev/null 2>&1 && dbus-uuidgen --ensure >/dev/null 2>&1
+
+# PipeWire the Debian way: systemd user units, not an xprofile-spawned
+# process. `systemctl --user enable` as another user needs that user's
+# session bus, which does not exist before first login — --global writes
+# the /etc/systemd/user symlinks offline and covers the (single) rice user.
+# The units start at first graphical login.
+systemctl --global enable pipewire pipewire-pulse wireplumber >/dev/null ||
+	error "command failed: systemctl --global enable pipewire pipewire-pulse wireplumber"
 
 # Enable tap to click
 [ ! -f /etc/X11/xorg.conf.d/40-libinput.conf ] && {

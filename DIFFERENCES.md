@@ -60,6 +60,18 @@ _NET_CURRENT_DESKTOP and _NET_WM_STATE (verified in src/sxwm.c):
 - `mod+shift+page_up` — shifttag -1.
 - `mod+shift+page_down` — shifttag +1.
 
+Dead upstream binds (commands nothing installs — dead keys on real
+hardware, so they are removed rather than ported):
+
+- `mod+c` — spawn `st -e profanity`: profanity is in neither LARBS's nor
+  debrice's manifest.
+- `mod+shift+d` — spawn `passmenu`: upstream voidrice (ad94491) no longer
+  ships the script and Debian's pass package has no passmenu binary.
+- `mod+f8` — spawn `mailsync`: upstream voidrice (ad94491) no longer ships
+  the script; isync (mbsync) is installed for cron/manual sync.
+- `mod+scroll_lock` — spawn `killall screenkey || screenkey &`: screenkey
+  is in neither manifest.
+
 ## 2. Adapted keybindings (same key, adjusted action)
 
 - `mod+F5` — dwm's xrdb (re-read Xresources into dwm) → sxwm `reload_config`.
@@ -105,6 +117,11 @@ _NET_CURRENT_DESKTOP and _NET_WM_STATE (verified in src/sxwm.c):
   sxwm reload key for anyone running it by hand.
 
 ## 4. Mouse/button differences
+
+- NumLock/CapsLock need no workaround: sxwm masks LockMask, NumLock (Mod2)
+  and mode_switch in both key and button grabs (the `guards[]` arrays in
+  grabkeys/grabbuttons, mirroring dwm), so super+number works with NumLock
+  on. Verified in src/sxwm.c; no porting action needed.
 
 - dwm's mod+Button1 drag = move, mod+Button3 drag = resize — sxwm does the
   same natively (plus mod+shift+Button1 = swap-drag with a highlight border).

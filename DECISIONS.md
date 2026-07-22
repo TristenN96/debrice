@@ -323,3 +323,42 @@ Three user-directed fixes after the third bare-metal run:
    - The Xvfb stage gained a functional assertion: xdotool sends super+2
      and `_NET_CURRENT_DESKTOP` must move 0 → 1 (xprop -root), proving the
      workspace directives are grabbed and acted on, not merely parsed.
+
+## D28 — Config-review hardening: dep coverage, PipeWire units, brave-browser, dead binds
+Four user-directed items from the config review:
+1. check-session-deps.sh now also parses the deployed sxwmrc: every quoted
+   bind/exec action is unwrapped (sh -c bodies, st -e targets) and each
+   command must resolve on PATH in the e2e container against the deployed
+   user home (a voidrice script counts only if actually deployed).
+   pulseaudio-utils (pactl, mic-mute bind) and xserver-xorg-input-synaptics
+   (synclient, touchpad XF86 binds) were missing from the manifest and were
+   added; wmctrl and wpctl were already covered (own entry, pipewire-bin).
+   Caveat: the synaptics and libinput drivers both claim touchpads — the
+   binds are XF86 corner keys and the check only enforces resolution.
+2. PipeWire the Debian way: `pipewire` dropped from the xprofile autostart;
+   debrice.sh runs `systemctl --global enable pipewire pipewire-pulse
+   wireplumber`. `systemctl --user enable` as another user needs that
+   user's session bus (absent pre-login); --global writes /etc/systemd/user
+   symlinks offline and covers the single rice user. Units start at first
+   graphical login; the runtime stage asserts the symlinks landed.
+3. Brave's Debian package ships /usr/bin/brave-browser (plus
+   brave-browser-stable) — no `brave` binary (verified in the e2e
+   container). sxwmrc binds and BROWSER in .config/shell/profile fixed to
+   brave-browser.
+4. Dead upstream binds removed and recorded in DIFFERENCES.md: mod+c
+   (profanity), mod+scroll_lock (screenkey), plus two more found by the
+   audit — mod+shift+d (passmenu: dropped upstream at voidrice ad94491 and
+   absent from Debian's pass package) and mod+f8 (mailsync: dropped
+   upstream). LockMask: sxwm's grab guards mask LockMask, numlock (Mod2)
+   and mode_switch in both key and button grabs (verified in src/sxwm.c),
+   so NumLock does not break super+number — no README warning needed.
+
+## D29 — apt fetch retries
+Suite runs on the dev host's network kept dying on single-package download
+hiccups (a local TLS-intercepting proxy failing individual fetches at
+random). apt's default is zero retries, so one bad fetch failed the whole
+package — and D26's per-package summary plus D28's FATAL pipewire-unit
+check then (correctly) refused to let the partial install pass. apt_install
+and the prereq loop now pass `-o Acquire::Retries=3`: a bootstrap is
+nothing but downloads, and transient fetch failures should be absorbed,
+not surfaced. Genuine resolution/availability failures still fail loudly.

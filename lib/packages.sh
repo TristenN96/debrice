@@ -11,9 +11,11 @@
 : "${BRAVE_SOURCE_LINE:=deb [signed-by=${BRAVE_KEYRING}] https://brave-browser-apt-release.s3.brave.com/ stable main}"
 
 # apt_install PKG [PKG...] — non-interactive apt install. stderr stays
-# visible: a failed install must show apt's own diagnosis.
+# visible: a failed install must show apt's own diagnosis. Retries: a
+# bootstrap is nothing but downloads, and one hiccuped fetch should not
+# abort a hundred-package run on a flaky link.
 apt_install() {
-	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$@" >/dev/null
+	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -o Acquire::Retries=3 "$@" >/dev/null
 }
 
 # add_brave_repo — add Brave's official apt repository and keyring.

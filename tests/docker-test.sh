@@ -172,14 +172,22 @@ command -v sponge >/dev/null 2>&1 \
 	|| { echo "RUNTIME FAILED: apt entries after the G block were not installed"; exit 1; }
 # Session dependency check: every command the deployed xinitrc/xprofile
 # invoke must resolve for the installed user (bare metal died at
-# "dbus-launch: not found"; Debian splits dbus-launch into dbus-x11).
+# "dbus-launch: not found"; Debian splits dbus-launch into dbus-x11) — and
+# every quoted bind/exec action in the deployed sxwmrc must resolve too: a
+# bind whose command is missing is a dead key on real hardware.
 sudo -u debricetest /debrice/scripts/check-session-deps.sh \
 	--extra-path /home/debricetest/.local/bin \
+	--sxwmrc /home/debricetest/.config/sxwmrc \
 	/home/debricetest/.config/x11/xinitrc \
 	/home/debricetest/.config/x11/xprofile \
 	/home/debricetest/.xprofile \
 	|| { echo "RUNTIME FAILED: session dependency check"; exit 1; }
-echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps)"
+# PipeWire must be wired up the Debian way: user units enabled at install.
+[ -L /etc/systemd/user/default.target.wants/pipewire.service ] \
+	&& [ -L /etc/systemd/user/default.target.wants/pipewire-pulse.service ] \
+	&& [ -L /etc/systemd/user/pipewire.service.wants/wireplumber.service ] \
+	|| { echo "RUNTIME FAILED: pipewire user units not enabled"; exit 1; }
+echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps, pipewire units)"
 EOF
 }
 

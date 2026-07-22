@@ -4,9 +4,9 @@ Review deliverable: the complete current text of the sxwm/sxbar configs, the
 session files as shipped, and the dwm→sxwm action mapping. The sxwm config
 lives at **`static/sxwmrc`** (repo root) and is tracked in git; it is
 deployed verbatim to `~/.config/sxwmrc` by `deploy_dotfiles`
-(`lib/dotfiles.sh`). Audit sources: `docs/sxwm.md` and `src/parser.c` in
-uint23/sxwm (master), and the vendored `static/dwm-config.h` (upstream
-ee3354d).
+(`lib/dotfiles.sh`). Audit sources: `docs/sxwm.md` and `src/parser.c` /
+`src/sxwm.c` in uint23/sxwm (master), and the vendored `static/dwm-config.h`
+(upstream ee3354d).
 
 ## 1. `static/sxwmrc` — complete current text
 
@@ -98,7 +98,7 @@ bind : mod + shift + q : "sysact"
 bind : mod + q : close_window
 
 # Programs.
-bind : mod + w : "brave"
+bind : mod + w : "brave-browser"
 bind : mod + shift + w : "st -e nmtui"
 bind : mod + e : "st -e neomutt"
 bind : mod + shift + e : "st -e abook"
@@ -136,7 +136,6 @@ bind : mod + x : decrease_gaps
 
 # Launchers.
 bind : mod + d : "dmenu_run"
-bind : mod + shift + d : "passmenu"
 
 # Fullscreen / floating.
 bind : mod + f : fullscreen
@@ -167,7 +166,6 @@ bind : mod + alt + apostrophe : "st -n spcalc -f monospace:size=16 -g 50x20 -e b
 bind : mod + Return : "st"
 
 # Other programs.
-bind : mod + c : "st -e profanity"
 bind : mod + b : "sh -c 'pkill -x sxbar || sxbar &'"
 bind : mod + n : "st -e nvim -c VimwikiIndex"
 bind : mod + shift + n : "st -e newsboat"
@@ -192,7 +190,6 @@ bind : mod + F4 : "st -e pulsemixer"
 bind : mod + F5 : reload_config
 bind : mod + F6 : "torwrap"
 bind : mod + F7 : "td-toggle"
-bind : mod + F8 : "mailsync"
 bind : mod + F9 : "mounter"
 bind : mod + F10 : "unmounter"
 bind : mod + F11 : "sh -c 'mpv --untimed --no-cache --no-osc --no-input-default-bindings --profile=low-latency --input-conf=/dev/null --title=webcam $(ls /dev/video[0,2,4,6,8] | tail -n 1)'"
@@ -206,7 +203,6 @@ bind : shift + Print : "maimpick"
 bind : mod + Print : "dmenurecord"
 bind : mod + shift + Print : "dmenurecord kill"
 bind : mod + Delete : "dmenurecord kill"
-bind : mod + Scroll_Lock : "sh -c 'killall screenkey || screenkey &'"
 
 # Media and hardware keys.
 bind : XF86AudioMute : "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
@@ -223,7 +219,7 @@ bind : XF86AudioMedia : "st -e ncmpcpp"
 bind : XF86AudioMicMute : "pactl set-source-mute @DEFAULT_SOURCE@ toggle"
 bind : XF86Calculator : "st -e bc -l"
 bind : XF86Sleep : "systemctl suspend"
-bind : XF86WWW : "brave"
+bind : XF86WWW : "brave-browser"
 bind : XF86DOS : "st"
 bind : XF86ScreenSaver : "sh -c 'slock & xset dpms force off; mpc pause; pauseallmpv'"
 bind : XF86TaskPane : "st -e htop"
@@ -377,7 +373,7 @@ xrandr --dpi 96		# Set DPI. User may want to use a larger number for larger scre
 setbg &			# set the background with the `setbg` script
 #xrdb ${XDG_CONFIG_HOME:-$HOME/.config}/x11/xresources & xrdbpid=$!	# Uncomment to use Xresources colors/settings on startup
 
-autostart="mpd picom dunst unclutter pipewire remapd"
+autostart="mpd picom dunst unclutter remapd"
 
 for program in $autostart; do
 	pidof -sx "$program" || "$program" &
@@ -399,7 +395,7 @@ xrandr --dpi 96		# Set DPI. User may want to use a larger number for larger scre
 setbg &			# set the background with the `setbg` script
 #xrdb ${XDG_CONFIG_HOME:-$HOME/.config}/x11/xresources & xrdbpid=$!	# Uncomment to use Xresources colors/settings on startup
 
-autostart="mpd picom dunst unclutter pipewire remapd"
+autostart="mpd picom dunst unclutter remapd"
 
 for program in $autostart; do
 	pidof -sx "$program" || "$program" &
@@ -409,7 +405,7 @@ done >/dev/null 2>&1
 [ -n "$xrdbpid" ] && wait "$xrdbpid"
 ```
 
-The two xprofile copies are byte-identical; the xinitrc sources the XDG copy first and falls back to `~/.xprofile`.
+`dotfiles/.xprofile` is a symlink to `.config/x11/xprofile`; the xinitrc sources the XDG copy first and falls back to `~/.xprofile`.
 
 ## 4. dwm internal function → sxwm directive mapping
 
@@ -511,22 +507,17 @@ and the directive now used in `static/sxwmrc`. "Dropped" entries point at
 
 ## 5. Audit notes
 
-- **Workspace directives:** the shipped sxwmrc already used the exact
-  upstream dedicated syntax — `workspace : mod + N : move N` (switch) and
+- **Workspace directives:** the shipped sxwmrc uses the exact upstream
+  dedicated syntax — `workspace : mod + N : move N` (switch) and
   `workspace : mod + shift + N : swap N` (send window) — verified against
-  `docs/sxwm.md` and `src/parser.c` (`TYPE_WS_CHANGE`/`TYPE_WS_MOVE`). If
-  `super+1..9` did nothing on hardware, the config was not the cause: with
-  current sxwm these lines parse and grab correctly. The likely culprit on
-  that machine is a stale sxwm binary (built before the `workspace`
-  directive existed); rebuilding from current master and reloading with
-  `super+F5` is the fix. The Xvfb stage now proves the shipped combo works:
-  it sends `super+2` via xdotool and asserts `_NET_CURRENT_DESKTOP` moves
-  0 → 1 via `xprop -root`.
+  `docs/sxwm.md` and `src/parser.c` (`TYPE_WS_CHANGE`/`TYPE_WS_MOVE`). The
+  Xvfb stage proves it functionally: it sends `super+2` via xdotool and
+  asserts `_NET_CURRENT_DESKTOP` moves 0 → 1 via `xprop -root`.
 - **`call` → `bind`:** `docs/sxwm.md` defines only `bind`, `workspace` and
   `scratchpad` (an internal function is a `bind` with a bare, unquoted
   action). The previously used `call` directive exists only as an
-  undocumented alias in `parser.c`; all 20 internal-function lines were
-  switched to the documented `bind` form. Parse result is identical.
+  undocumented alias in `parser.c`; all internal-function lines use the
+  documented `bind` form. Parse result is identical.
 - **Function names:** every internal function used above exists verbatim in
   the docs' function table / parser `call_table`: `focus_next`, `focus_prev`,
   `master_next`, `master_prev`, `master_increase`, `master_decrease`,
@@ -534,3 +525,23 @@ and the directive now used in `static/sxwmrc`. "Dropped" entries point at
   `toggle_floating`, `increase_gaps`, `decrease_gaps`,
   `switch_previous_workspace`, `focus_next_mon`, `focus_prev_mon`,
   `move_next_mon`, `move_prev_mon`, `reload_config`.
+- **Brave binary:** Debian's `brave-browser` package ships
+  `/usr/bin/brave-browser` (and `brave-browser-stable`) — no `brave`
+  binary. Binds and the `BROWSER` env var (`.config/shell/profile`) use
+  `brave-browser`. Verified in the e2e container.
+- **Dead upstream binds removed:** `mod+c` (profanity), `mod+scroll_lock`
+  (screenkey), `mod+shift+d` (passmenu — dropped upstream at voidrice
+  ad94491, absent from Debian's `pass`), `mod+f8` (mailsync — dropped
+  upstream). Each is recorded in DIFFERENCES.md §1.
+- **NumLock/LockMask:** sxwm masks `LockMask`, NumLock (`Mod2`) and
+  `mode_switch` in both key and button grabs (`guards[]` in
+  `grabkeys`/`grabbuttons`, mirroring dwm), so `super+number` works with
+  NumLock on. Verified in `src/sxwm.c`; no user action needed.
+- **PipeWire:** the session no longer spawns `pipewire` from xprofile;
+  `pipewire`, `pipewire-pulse` and `wireplumber` are enabled as systemd
+  user units at install time (`systemctl --global enable`) and start at
+  first graphical login. The `wpctl`/`pactl` binds are unchanged.
+- **Dependency coverage:** `scripts/check-session-deps.sh` checks every
+  command in the session files AND every quoted bind/exec action in the
+  deployed sxwmrc against PATH in the e2e container (52 commands), so a
+  dead key or dead autostart fails the build.

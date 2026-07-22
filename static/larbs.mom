@@ -156,8 +156,6 @@ there is no layout menu. What remains of dwm's layout zoo:
 \f(CWMod+N\fP \(en newsboat (RSS feed reader)
 .ITEM
 \f(CWMod+F4\fP \(en pulsemixer (audio system control)
-.ITEM
-\f(CWMod+D\fP \(en passmenu (password manager)
 .LIST OFF
 .HEADING 2 "Scratchpads (dropdown terminal and calculator)"
 .PP
@@ -277,8 +275,6 @@ previous recordings as their names are based on their exact times.
 \f(CWMod+PrintScreen\fP \(en Opens dmenu menu to select kind of audio/video recording
 .ITEM
 \f(CWMod+Delete\fP \(en Kills any recording started in the above way.
-.ITEM
-\f(CWMod+ScrollLock\fP \(en Toggle screenkey (if installed) to show keypresses
 .LIST OFF
 .HEADING 2 "Other buttons"
 .PP

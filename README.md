@@ -116,8 +116,6 @@ First time: `Mod+Alt+Enter` (spawn), `Mod+Ctrl+Enter` (register), then
 | `Mod+r` / `Mod+R` | lf (files) / htop (processes) |
 | `Mod+n` / `Mod+N` | vimwiki (notes) / newsboat (RSS) |
 | `Mod+m` | ncmpcpp (music) |
-| `Mod+c` | profanity (XMPP chat) |
-| `Mod+D` | passmenu (passwords) |
 | `Mod+grave` | dmenuunicode (emoji picker) |
 | `Mod+Insert` | Type a saved snippet |
 
@@ -131,7 +129,6 @@ First time: `Mod+Alt+Enter` (spawn), `Mod+Ctrl+Enter` (register), then
 | `Mod+F3` | Display selection |
 | `Mod+F4` | pulsemixer (audio control) |
 | `Mod+F6` | torrent client / `Mod+F7` toggle daemon |
-| `Mod+F8` | mailsync |
 | `Mod+F9` / `Mod+F10` | Mount / unmount drives |
 | `Mod+F11` | Webcam view |
 | `Mod+F12` | Re-run keyboard remaps |
@@ -155,7 +152,6 @@ First time: `Mod+Alt+Enter` (spawn), `Mod+Ctrl+Enter` (register), then
 | `Shift+Print` | Screenshot menu (maimpick) |
 | `Mod+Print` | Recording menu (dmenurecord) |
 | `Mod+Delete` or `Mod+Shift+Print` | Kill recording |
-| `Mod+ScrollLock` | Toggle screenkey |
 
 ### Hardware (XF86) keys
 
@@ -190,6 +186,9 @@ option in the sysact menu (`Mod+BackSpace`) sends it too.
 - `bat` is symlinked to Debian's `batcat`; `picom` replaces the dead
   xcompmgr; `ueberzug` (not ueberzugpp) drives lf previews;
   `zathura-pdf-poppler` provides PDF support.
+- **PipeWire runs as systemd user units** — `pipewire`, `pipewire-pulse`
+  and `wireplumber` are enabled at install time and start at first
+  graphical login (upstream voidrice spawned `pipewire` from `~/.xprofile`).
 
 See [DIFFERENCES.md](DIFFERENCES.md) for the complete list with reasons and
 [DECISIONS.md](DECISIONS.md) for the judgment calls made while porting.
@@ -223,10 +222,11 @@ With working docker, every stage runs in a `debian:trixie` container:
 shellcheck lint, non-interactive preflight, an end-to-end runtime stage that
 executes `debrice.sh` with the real `progs.csv` and asserts the git-built
 binaries (`sxwm`, `sxbar`, `st`, `dmenu`, `slock`, `mw`) actually landed and
-that every command the deployed session files invoke resolves on PATH
-(`scripts/check-session-deps.sh`), package resolution via apt-cache for every
-`,`/`R` entry, compilation of st/dmenu/slock/sxwm/sxbar with only the
-declared build deps, an idempotency run, and an Xvfb smoke test of sxwm that
+that every command the deployed session files or sxwmrc bind/exec actions
+invoke resolves on PATH (`scripts/check-session-deps.sh`), package
+resolution via apt-cache for every `,`/`R` entry, compilation of
+st/dmenu/slock/sxwm/sxbar with only the declared build deps, an idempotency
+run, and an Xvfb smoke test of sxwm that
 also asserts `super+2` really switches to workspace 2
 (`_NET_CURRENT_DESKTOP` via `xprop -root`).
 Without docker the script degrades to static local verification (Trixie and
