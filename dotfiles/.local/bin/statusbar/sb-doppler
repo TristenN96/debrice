@@ -216,10 +216,10 @@ getdoppler() {
 	notify-send "🌦️ Doppler RADAR" "Pulling most recent Doppler RADAR for $province."
 	case "$country" in
 		"US") province="$(echo "$province" | tr "[:lower:]" "[:upper:]")"
-		curl -sL "https://radar.weather.gov/ridge/standard/${province}_loop.gif" > "$doppler" ;;
+		curl -sL --max-time 20 "https://radar.weather.gov/ridge/standard/${province}_loop.gif" > "$doppler" ;;
 		"DE") province="$(echo "$province" | tr "[:upper:]" "[:lower:]")"
-		curl -sL "https://www.dwd.de/DWD/wetter/radar/radfilm_${province}_akt.gif" > "$doppler" ;;
-		"NL") curl -sL "https://cdn.knmi.nl/knmi/map/general/weather-map.gif" > "$doppler" ;;
+		curl -sL --max-time 20 "https://www.dwd.de/DWD/wetter/radar/radfilm_${province}_akt.gif" > "$doppler" ;;
+		"NL") curl -sL --max-time 20 "https://cdn.knmi.nl/knmi/map/general/weather-map.gif" > "$doppler" ;;
 	esac
 }
 

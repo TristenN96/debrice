@@ -362,3 +362,26 @@ check then (correctly) refused to let the partial install pass. apt_install
 and the prereq loop now pass `-o Acquire::Retries=3`: a bootstrap is
 nothing but downloads, and transient fetch failures should be absorbed,
 not surfaced. Genuine resolution/availability failures still fail loudly.
+
+## D30 — sxbar workspace-highlight audit (tracks correctly; hardened)
+User report: workspaces switch fine but sxbar's active-workspace highlight
+never updates on hardware. Full audit of sxbar.c + sxwm.c plus an Xvfb
+reproduction with the shipped configs:
+- sxbar reads _NET_CURRENT_DESKTOP and repaints on its PropertyNotify; the
+  run loop also repaints every second unconditionally. sxwm sets every
+  required atom at startup (SUPPORTED incl. desktop atoms,
+  NUMBER_OF_DESKTOPS, DESKTOP_NAMES, CURRENT_DESKTOP, per-client
+  WM_DESKTOP). No EWMH gap on either side; no patch needed.
+- Our workspaces.* keys match the current parser exactly; sxbar.1 is an
+  EMPTY file upstream — parser.c/default_sxbarc are the only authority.
+- Xvfb reproduction: highlight at x=0 on ws1, moves to x=26 after super+2
+  with the exec-started bar. The stage now asserts this permanently via a
+  small XGetImage scanner compiled inline (finds the dock window by
+  scanning the root tree — sxwm does not manage docks and excludes them
+  from _NET_CLIENT_LIST, noted in DIFFERENCES.md §7).
+- Real freeze candidates on hardware: a stale sxbar binary, a duplicate
+  sxbar instance stacked over the good one, or a hung module — sxbar runs
+  module commands with a blocking popen in its single event loop.
+  Hardened our side: sb-forecast/sb-doppler curls get --max-time 20
+  (documented in CHANGES-FROM-VOIDRICE.md); the design caveat is recorded
+  in DIFFERENCES.md §7.

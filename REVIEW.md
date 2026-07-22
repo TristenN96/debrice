@@ -4,9 +4,10 @@ Review deliverable: the complete current text of the sxwm/sxbar configs, the
 session files as shipped, and the dwm→sxwm action mapping. The sxwm config
 lives at **`static/sxwmrc`** (repo root) and is tracked in git; it is
 deployed verbatim to `~/.config/sxwmrc` by `deploy_dotfiles`
-(`lib/dotfiles.sh`). Audit sources: `docs/sxwm.md` and `src/parser.c` /
-`src/sxwm.c` in uint23/sxwm (master), and the vendored `static/dwm-config.h`
-(upstream ee3354d).
+(`lib/dotfiles.sh`). Audit sources: `docs/sxwm.md`, `src/parser.c` and
+`src/sxwm.c` in uint23/sxwm (master), `src/sxbar.c` + `src/parser.c` +
+`default_sxbarc` in uint23/sxbar (main), and the vendored
+`static/dwm-config.h` (upstream ee3354d).
 
 ## 1. `static/sxwmrc` — complete current text
 
@@ -525,6 +526,24 @@ and the directive now used in `static/sxwmrc`. "Dropped" entries point at
   `toggle_floating`, `increase_gaps`, `decrease_gaps`,
   `switch_previous_workspace`, `focus_next_mon`, `focus_prev_mon`,
   `move_next_mon`, `move_prev_mon`, `reload_config`.
+- **sxbar workspace tracking (audited end-to-end):** sxbar reads
+  `_NET_CURRENT_DESKTOP` from the root window and repaints on the matching
+  PropertyNotify, plus an unconditional 1-second repaint in its run loop.
+  sxwm sets every atom it needs (`_NET_SUPPORTED` including the desktop
+  atoms, `_NET_NUMBER_OF_DESKTOPS`, `_NET_DESKTOP_NAMES`, per-client
+  `_NET_WM_DESKTOP`) — no EWMH patch required on either side. The
+  `workspaces.*` keys in sxbarc match the current parser exactly
+  (`sxbar.1` is an empty file upstream; `src/parser.c` + `default_sxbarc`
+  are the only authority). The Xvfb stage asserts the highlight actually
+  moves: a small XGetImage scanner locates the dock window via the root
+  tree (sxwm does not manage docks — they are absent from
+  `_NET_CLIENT_LIST`) and checks the active color moves on `super+2`.
+  Upstream caveat: sxbar runs module commands with a blocking popen in
+  its single loop, so a hung module freezes the whole bar — the two
+  network modules (sb-forecast, sb-doppler) now use `curl --max-time 20`.
+  A highlight that never moves on hardware means a stale sxbar binary, a
+  duplicate instance stacked over the good one, or a hung module — see
+  DIFFERENCES.md §7.
 - **Brave binary:** Debian's `brave-browser` package ships
   `/usr/bin/brave-browser` (and `brave-browser-stable`) — no `brave`
   binary. Binds and the `BROWSER` env var (`.config/shell/profile`) use

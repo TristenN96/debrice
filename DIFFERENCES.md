@@ -168,3 +168,34 @@ hardware, so they are removed rather than ported):
 - The Xephyr stage verifies sxwm launches, parses static/sxwmrc, and
   survives a super+F5 reload. It does not exercise real key grabs against
   every binding; that needs a live session.
+
+## 7. Upstream notes: sxwm/sxbar interop
+
+Workspace-indicator tracking was audited end-to-end (sxbar.c, sxwm.c, and
+an Xvfb reproduction with the shipped configs):
+
+- sxbar's workspace widget reads `_NET_CURRENT_DESKTOP` from the root
+  window and repaints on the matching PropertyNotify; its main loop also
+  repaints every second regardless. sxwm sets every atom sxbar needs at
+  startup (`_NET_SUPPORTED` includes the desktop atoms,
+  `_NET_NUMBER_OF_DESKTOPS`, `_NET_DESKTOP_NAMES` as "1"…"9",
+  `_NET_CURRENT_DESKTOP`, per-client `_NET_WM_DESKTOP`), so no EWMH patch
+  is needed on either side. The Xvfb stage proves it: the
+  active-workspace highlight visibly moves on super+2.
+- sxbar.1 is an EMPTY file upstream; src/parser.c and default_sxbarc are
+  the only accurate references for the `workspaces.*` keys. Our sxbarc
+  matches them exactly.
+- sxbar runs module commands with a blocking popen in its single event
+  loop: a hung module freezes the whole bar, workspace highlight included
+  (upstream design). The two network modules used in sxbarc (sb-forecast,
+  sb-doppler) now call curl with `--max-time 20` (see
+  CHANGES-FROM-VOIDRICE.md), so a bad network can stall the bar for at
+  most ~20 s per module. A highlight that still never moves on hardware
+  therefore means a stale sxbar binary (predating the PropertyNotify
+  tracking), a duplicate sxbar instance stacked over the good one, or a
+  hung module — rebuild/restart sxbar; the shipped combo is proven by
+  the Xvfb stage.
+- sxwm does not manage dock windows: it maps them and leaves them out of
+  `_NET_CLIENT_LIST` (verified in src/sxwm.c). sxbar is unaffected (it
+  draws its own dock window), but taskbars/pagers that enumerate
+  `_NET_CLIENT_LIST` will not list the bar.

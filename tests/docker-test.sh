@@ -435,12 +435,60 @@ export DEBIAN_FRONTEND=noninteractive
 # framebuffer server and needs nothing from the host.
 apt-get update -qq
 apt-get install -y -qq git build-essential pkg-config xvfb x11-utils \
-	xdotool libx11-dev libxinerama-dev libxcursor-dev >/dev/null
+	xdotool libx11-dev libxinerama-dev libxcursor-dev \
+	libxft-dev libfontconfig1-dev fonts-dejavu-core >/dev/null
 git clone --depth 1 -q https://github.com/uint23/sxwm.git /tmp/sxwm
 make -C /tmp/sxwm >/dev/null
 make -C /tmp/sxwm install PREFIX=/usr/local >/dev/null
+# sxbar too: the workspace-highlight tracking is asserted below. The shipped
+# sxwmrc autostarts it via exec, which is exactly the path under test.
+git clone --depth 1 -q https://github.com/uint23/sxbar.git /tmp/sxbar
+make -C /tmp/sxbar >/dev/null
+make -C /tmp/sxbar install PREFIX=/usr/local >/dev/null
 mkdir -p /root/.config
 cp /debrice/static/sxwmrc /root/.config/sxwmrc
+cp /debrice/static/sxbarc /root/.config/sxbarc
+# Pixel scanner: prints first x and count of the target color per dock
+# window. sxwm does not manage docks (they are absent from
+# _NET_CLIENT_LIST), so find the bar by scanning the root tree for a
+# _NET_WM_WINDOW_TYPE_DOCK window — the same thing sxwm's strut code does.
+cat >/tmp/ws-scan.c <<'C_EOF'
+#include <stdio.h>
+#include <stdlib.h>
+#include <X11/Xlib.h>
+#include <X11/Xatom.h>
+#include <X11/Xutil.h>
+int main(int argc, char **argv) {
+	Display *d = XOpenDisplay(argv[1]);
+	if (!d) return 2;
+	Window root = DefaultRootWindow(d);
+	unsigned target = (unsigned)strtoul(argv[2], NULL, 16) & 0xffffff;
+	Atom dockt = XInternAtom(d, "_NET_WM_WINDOW_TYPE_DOCK", False);
+	Atom wtype = XInternAtom(d, "_NET_WM_WINDOW_TYPE", False);
+	Window rret, pret, *kids = NULL; unsigned int nk = 0;
+	XQueryTree(d, root, &rret, &pret, &kids, &nk);
+	for (unsigned int i = 0; i < nk && kids; i++) {
+		Window w = kids[i];
+		unsigned char *td = NULL; Atom t2; int f2; unsigned long n2, a2;
+		Bool is = False;
+		if (XGetWindowProperty(d, w, wtype, 0, 4, False, XA_ATOM, &t2, &f2, &n2, &a2, &td) == Success && td) {
+			for (unsigned long j = 0; j < n2; j++) if (((Atom *)td)[j] == dockt) is = True;
+			XFree(td);
+		}
+		if (!is) continue;
+		XWindowAttributes ga; XGetWindowAttributes(d, w, &ga);
+		XImage *img = XGetImage(d, w, 0, 0, ga.width, (unsigned)ga.height, AllPlanes, ZPixmap);
+		if (!img) continue;
+		int first = -1; unsigned long cnt = 0;
+		for (int x = 0; x < img->width; x++) for (int y = 0; y < img->height; y++)
+			if ((XGetPixel(img, x, y) & 0xffffff) == target) { if (first < 0) first = x; cnt++; break; }
+		printf("first=%d count=%lu\n", first, cnt);
+		XDestroyImage(img);
+	}
+	return 0;
+}
+C_EOF
+cc -o /tmp/ws-scan /tmp/ws-scan.c -lX11
 export DISPLAY=:99
 Xvfb :99 -screen 0 1280x720x24 >/dev/null 2>&1 &
 sleep 2
@@ -449,11 +497,18 @@ sleep 3
 xdotool key super+F5
 sleep 1
 pidof sxwm >/dev/null || { echo "sxwm NOT RUNNING"; cat /tmp/sxwm.log; exit 1; }
-grep -q "using configuration file" /tmp/sxwm.log \
-	|| { echo "sxwm DID NOT PARSE CONFIG"; cat /tmp/sxwm.log; exit 1; }
+# No log grep for the "using configuration file" banner: with stdout to a
+# file it is block-buffered and previously only reached the log when a
+# failed execvp child flushed its inherited copy on exit — now that sxbar
+# exists and exec succeeds, the banner never flushes. The super+2 switch
+# below is the stronger proof that the shipped config parsed.
+pidof sxbar >/dev/null || { echo "sxbar NOT RUNNING (sxwmrc exec failed)"; exit 1; }
 # Functional keybinding assertion: super+2 must switch to workspace 2. This
 # proves the shipped `workspace : mod + N : move N` directives are actually
 # grabbed and acted on — not merely parsed without error.
+# The bar assertion needs the highlight's x before the switch.
+ws_first() { /tmp/ws-scan :99 cc241d | sed -n 's/^first=\([0-9-]*\).*/\1/p' | head -1; }
+red0="$(ws_first)"
 cur0="$(xprop -root _NET_CURRENT_DESKTOP | awk '{print $NF}')"
 xdotool key super+2
 sleep 1
@@ -461,6 +516,16 @@ cur1="$(xprop -root _NET_CURRENT_DESKTOP | awk '{print $NF}')"
 [ "$cur0" = "0" ] && [ "$cur1" = "1" ] \
 	|| { echo "WORKSPACE SWITCH FAILED: super+2 gave _NET_CURRENT_DESKTOP '$cur0' -> '$cur1'"; cat /tmp/sxwm.log; exit 1; }
 echo "WORKSPACE SWITCH OK (super+2: _NET_CURRENT_DESKTOP 0 -> 1)"
+# Bar tracking assertion: sxbar must repaint the active-workspace highlight
+# (#cc241d, the sxbarc active background) — it must exist and move right
+# from label 1's box to label 2's after the switch.
+sleep 1
+red1="$(ws_first)"
+[ "${red0:--1}" -ge 0 ] \
+	|| { echo "BAR TRACKING FAILED: no active-workspace highlight painted (red first=$red0)"; exit 1; }
+[ "${red1:--1}" -gt "$red0" ] \
+	|| { echo "BAR TRACKING FAILED: highlight did not move on super+2 (red first $red0 -> $red1)"; exit 1; }
+echo "BAR TRACKING OK (active highlight moved x=$red0 -> x=$red1 on super+2)"
 kill %2 %1 2>/dev/null || true
 echo "X SMOKE OK"
 EOF

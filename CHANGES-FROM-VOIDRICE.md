@@ -30,6 +30,8 @@ are added at deploy time from `static/` and noted at the bottom.
 - `.local/bin/statusbar/sb-moonphase` — removed `pkill -RTMIN+"${1:-17}" dwmblocks`: same reason.
 - `.local/bin/statusbar/sb-forecast` — removed `pkill -RTMIN+"${1:-5}" dwmblocks`: same reason.
 - `.local/bin/transadd` — removed `pkill -RTMIN+7 dwmblocks`: same reason.
+- `.local/bin/statusbar/sb-forecast` — added `--max-time 20` to the wttr.in curl: sxbar runs module commands with a blocking popen in its single event loop, so an unbounded fetch can freeze the whole bar (workspace highlight included) on a bad network.
+- `.local/bin/statusbar/sb-doppler` — same `--max-time 20` addition to all three radar-image curls: same reason.
 - `.local/bin/torwrap` — removed `pkill -RTMIN+7 dwmblocks`: same reason.
 - `.local/bin/td-toggle` — removed the trailing torrent-module refresh line: same reason.
 - `.local/bin/dmenurecord` — removed both `pkill -RTMIN+9 dwmblocks` refreshes: icon file still written to `/tmp/recordingicon`, sxbar polls it.
