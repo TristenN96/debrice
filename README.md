@@ -187,8 +187,11 @@ option in the sysact menu (`Mod+BackSpace`) sends it too.
   xcompmgr; `ueberzug` (not ueberzugpp) drives lf previews;
   `zathura-pdf-poppler` provides PDF support.
 - **PipeWire runs as systemd user units** — `pipewire`, `pipewire-pulse`
-  and `wireplumber` are enabled at install time and start at first
-  graphical login (upstream voidrice spawned `pipewire` from `~/.xprofile`).
+  and `wireplumber` are enabled at install time (globally AND via per-user
+  symlinks in `~/.config/systemd/user`; global-only enablement proved
+  insufficient on hardware) and start at first graphical login (upstream
+  voidrice spawned `pipewire` from `~/.xprofile`). `rtkit` is installed
+  for realtime scheduling priority.
 - **Default wallpaper is `static/ship.jpg`** — deployed to
   `~/.local/share/ship.jpg` with `~/.local/share/bg` pointing at it,
   replacing voidrice's default; the stock `setbg` in the xprofile picks it

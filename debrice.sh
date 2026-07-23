@@ -390,6 +390,14 @@ installationloop
 # existing configs they overwrite.
 deploy_dotfiles "$name" "/home/$name"
 
+# Remove a stale voidrice pipewire.conf.d from earlier deploys: its
+# context.exec made pipewire.service spawn its own wireplumber child while
+# wireplumber.service started a second instance — two session managers
+# racing wedged the whole stack at login (wpctl AND pactl hung with all
+# units "active running"; only a manual restart unwedged it). deploy
+# backs up and overwrites but never deletes, so drop it explicitly.
+rm -rf "/home/$name/.config/pipewire"
+
 # Install the ported keybinding cheat sheet (super+F1).
 install_cheatsheet "$DEBRICE_STATIC_SRC"
 
@@ -418,12 +426,28 @@ sudo -u "$name" mkdir -p "/home/$name/.config/mpd/playlists/"
 command -v dbus-uuidgen >/dev/null 2>&1 && dbus-uuidgen --ensure >/dev/null 2>&1
 
 # PipeWire the Debian way: systemd user units, not an xprofile-spawned
-# process. `systemctl --user enable` as another user needs that user's
-# session bus, which does not exist before first login — --global writes
-# the /etc/systemd/user symlinks offline and covers the (single) rice user.
-# The units start at first graphical login.
+# process. Hardware follow-up (sb-volume hung on a session-manager-less
+# PipeWire; `systemctl --user list-units` showed nothing): global
+# enablement alone left the units enabled but never active at first login.
+# The manual fix — `systemctl --user enable --now ...` — works because of
+# the per-user enablement symlinks it writes, which the user manager reads
+# with top precedence over /etc. `systemctl --user enable` as another user
+# needs that user's session bus, which does not exist before first login —
+# so write those same symlinks directly: enablement is pure filesystem
+# state and the targets come from each unit's [Install] section.
+# WantedBy=default.target then starts all three units at first graphical
+# login (verified end-to-end in a systemd-booted Trixie container:
+# per-user links alone suffice even with /etc/systemd/user wiped).
 systemctl --global enable pipewire pipewire-pulse wireplumber >/dev/null ||
 	error "command failed: systemctl --global enable pipewire pipewire-pulse wireplumber"
+pwunits="/home/$name/.config/systemd/user"
+sudo -u "$name" mkdir -p "$pwunits/default.target.wants" "$pwunits/pipewire.service.wants"
+sudo -u "$name" ln -sf /usr/lib/systemd/user/pipewire.service \
+	"$pwunits/default.target.wants/pipewire.service"
+sudo -u "$name" ln -sf /usr/lib/systemd/user/pipewire-pulse.service \
+	"$pwunits/default.target.wants/pipewire-pulse.service"
+sudo -u "$name" ln -sf /usr/lib/systemd/user/wireplumber.service \
+	"$pwunits/pipewire.service.wants/wireplumber.service"
 
 # Enable tap to click
 [ ! -f /etc/X11/xorg.conf.d/40-libinput.conf ] && {

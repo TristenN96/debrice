@@ -39,17 +39,17 @@ case "$icon" in
 	*) exit 1 ;;
 esac
 
-echo "${icon-?}"
+echo "$name"
 
 case $BLOCK_BUTTON in
-	3) notify-send "🌜 Moon phase module" "Displays current moon phase.
-- 🌑: New
-- 🌒: Waxing Crescent
-- 🌓: First Quarter
-- 🌔: Waxing Gibbous
-- 🌕: Full
-- 🌖: Waning Gibbous
-- 🌗: Last Quarter
-- 🌘: Waning Crescent" ;;
+	3) notify-send "Moon phase module" "Displays current moon phase.
+- New
+- Waxing Crescent
+- First Quarter
+- Waxing Gibbous
+- Full
+- Waning Gibbous
+- Last Quarter
+- Waning Crescent" ;;
 	6) setsid -f "$TERMINAL" -e "$EDITOR" "$0" ;;
 esac

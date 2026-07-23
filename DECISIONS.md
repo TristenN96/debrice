@@ -454,3 +454,92 @@ larbs.mom, docs). The Xvfb stage restarts the bar under
 opened /root/.config/sxbar/sxbarc — a banner capture is impossible because
 no banner exists. The runtime stage asserts the file lands at the
 preferred path and that no legacy-path file remains.
+
+## D34 — PipeWire first-login activation; sxbar module read timeout
+Hardware run #5: sb-volume hung indefinitely — wireplumber (the PipeWire
+session manager) never came up after install; `systemctl --user
+list-units` showed nothing for pipewire/wireplumber. Root-caused in a
+systemd-booted Trixie container (machinectl shell as the installed user):
+- Trixie's wireplumber/pipewire packages already auto-enable all three
+  units globally at package install (dh_installsystemduser), so D28's
+  `systemctl --global enable` is a no-op on top. With the
+  /etc/systemd/user links present, all three units DO activate at first
+  login — the stock mechanism works. Wiping /etc/systemd/user reproduces
+  the hardware state exactly: nothing loaded, nothing active
+  (`is-active` rc=3). Enablement is pure symlink state and login
+  activation follows the symlinks, so the hardware install's global
+  links evidently never landed (or were lost) — the "enabled but not
+  started" class, with wireplumber the user-visible victim.
+- The manual fix (`systemctl --user enable --now ...`) worked because of
+  the per-user symlinks enable writes to ~/.config/systemd/user, which
+  the user manager reads with top precedence over /etc. debrice.sh now
+  writes those same symlinks for the created user at install time
+  (offline — `--user enable` needs the user's session bus, absent
+  pre-login) in addition to --global. Verified in the container:
+  per-user links alone, /etc links wiped → all three active at first
+  login, `is-enabled` reports enabled for all three.
+- The vendored voidrice pipewire.conf.d/user-session.conf (context.exec
+  spawning wireplumber/pipewire-pulse as pipewire children) is dropped:
+  a leftover of the xprofile-spawned design that double-spawned the
+  session manager under the units.
+- rtkit added to progs.csv (PipeWire docs recommend it; silences the
+  mod.rt warnings).
+- e2e: the runtime stage now asserts the per-user symlinks AND that
+  `systemctl --user is-enabled wireplumber pipewire pipewire-pulse`
+  reports enabled for the installed user (is-enabled reads enablement
+  offline — no user bus needed in the container; needs -H so HOME points
+  at the user's own home).
+sxbar belt-and-suspenders (D32's residual class, now closed): a module
+hanging BEFORE printing — exactly sb-volume's wpctl against the
+session-manager-less PipeWire — still blocked the first fgets. The pin
+moved out of lib/builds.sh into lib/sxbar-pin.sh (shared with the Xvfb
+stage, so the tested build is the installed build) and now rewrites
+run_command() wholesale: modules run under `timeout -k 1 5` (coreutils,
+Essential — killing a hung module closes the pipe, bounding both fgets
+and pclose's waitpid), poll(2) with a 5s timeout precedes the read (a
+pipe held open by a backgrounded grandchild with nothing printed no
+longer blocks), and D32's single-line read stays. Shell-quoting
+semantics verified identical to upstream popen on a harness; every
+freeze shape (output-then-hold, hang-before-print, never-exits) bounded
+at ~5s. A bad module renders empty for one tick; the bar can never
+freeze indefinitely again.
+
+## D35 — pactl audio path, de-emojied bar, PipeWire duplicate-session-manager race
+Three user-directed customization/fix items after hardware run #6:
+1. **sb-volume is pactl now.** Replaced with the user's pactl-based
+   script: prints `Vol 40%`, or `Muted` when the default sink is muted.
+   The sxwmrc volume binds moved from wpctl to the pactl equivalents
+   (`pactl set-sink-volume @DEFAULT_SINK@ ±N%`, `pactl set-sink-mute
+   @DEFAULT_SINK@ toggle`; mic mute was pactl already) so the whole audio
+   path is one API. The XF86 `wpctl … 0%∓ &&` chains collapsed to plain
+   `pactl … ±3%` — the 0% step was a wpctl-ism. check-binds.sh maps the
+   vendored dwm config's wpctl spawn token to pactl (with librewolf→brave
+   and sudo→systemctl in the same adaptation table).
+2. **De-emoji the whole bar.** Every sb-* module prints short ASCII
+   labels instead of icon glyphs (nettraf `45MB dn / 1.2MB up`, internet
+   `WiFi 73% Eth`, forecast `Rain 20%  Low 5°  High 12°`, clock without
+   the clockface, moonphase prints the phase NAME the case already
+   computed, torrent as letter codes P/I/U/D/F/S, help `?`); notify-send
+   titles/legends de-emojied; cron/newsup writes `(sync)` instead of 🔃
+   into the file sb-news displays. Two deliberate exceptions:
+   sb-moonphase's case PATTERNS keep the moon emoji (they match wttr.in's
+   `%m` output — input parsing, never printed) and sb-cpubars' block
+   glyphs stay (functional sparkline, covered by DejaVu).
+3. **PipeWire boot race root-caused: duplicate wireplumber.** Hardware
+   evidence: at login wpctl AND pactl hung while all units showed
+   "active running"; after a manual restart (which always fixed it)
+   `wpctl status` showed TWO wireplumber instances. The duplicate was
+   the vendored voidrice `~/.config/pipewire/pipewire.conf.d/
+   user-session.conf` (D34 dropped it from the repo, but existing
+   deploys keep it — deploy_dotfiles overwrites, never deletes): its
+   context.exec made pipewire.service spawn a wireplumber child WHILE
+   wireplumber.service started a second instance, and the two session
+   managers wedged the stack at login. Fixes: debrice.sh now rm -rf's
+   the stale `~/.config/pipewire` after deploy (fresh installs never had
+   it; reruns are cleaned); the double-enable (global + per-user
+   symlinks) is NOT a factor — enablement symlinks dedupe by unit name
+   and were verified harmless in the D34 container. e2e assertions in
+   the runtime stage: deployed xprofile/~/.xprofile contain no
+   pipewire/wireplumber launch, no `~/.config/pipewire` survives the
+   deploy, and each of the three units has exactly two enablement links
+   (one global + one per-user — enabled exactly once per scope).

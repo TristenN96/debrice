@@ -84,6 +84,12 @@ hardware, so they are removed rather than ported):
   `pkill -RTMIN+N dwmblocks` refresh suffixes are dropped. sxbar has no
   signal API; the affected bar modules poll on short intervals instead
   (sb-volume every 2 s, sb-news every 60 s, sb-mailbox every 180 s).
+- The volume binds additionally moved from wpctl to pactl
+  (`pactl set-sink-volume @DEFAULT_SINK@ ±N%`,
+  `pactl set-sink-mute @DEFAULT_SINK@ toggle`; mic mute was pactl already):
+  the whole audio path — binds and sb-volume — is one API. The
+  XF86AudioRaise/LowerVolume `wpctl … 0%∓ &&` chains became plain
+  `pactl … ±3%` (the 0% step was a wpctl-ism with no pactl meaning).
 - `mod+shift+Return`, `mod+apostrophe` — dwm togglescratch (spawn-on-first-
   press, toggle afterwards) → sxwm `scratchpad … toggle`. sxwm scratchpads
   are created by marking the focused window (`ctrl` variants of both keys)
@@ -113,8 +119,16 @@ hardware, so they are removed rather than ported):
 - sb-pacpackages is gone from the bar (pacman-only; see
   CHANGES-FROM-VOIDRICE.md), so there is no update-count module.
 - sb-help-icon still renders the cheat sheet when clicked under dwm; under
-  sxbar it is a static ❓ glyph. Its middle-click "restart WM" became the
+  sxbar it is a static `?` glyph. Its middle-click "restart WM" became the
   sxwm reload key for anyone running it by hand.
+- The whole bar is de-emojied: every sb-* module prints short ASCII labels
+  instead of icon/emoji glyphs (sb-volume prints `Vol 40%`/`Muted`,
+  sb-nettraf `45MB dn / 1.2MB up`, sb-internet `WiFi 73% Eth`, sb-forecast
+  `Rain 20%  Low 5°  High 12°`, sb-clock drops the clockface, sb-moonphase
+  prints the phase name, sb-torrent uses letter codes, sb-help-icon `?`).
+  sb-moonphase keeps emoji in its case patterns only — they match
+  wttr.in's `%m` output and are never printed. sb-cpubars' block-bar
+  glyphs stay (functional sparkline, not emoji; DejaVu covers them).
 
 ## 4. Mouse/button differences
 
@@ -194,22 +208,28 @@ confirmed by source trace:
   bar (clock included), not just the workspace highlight. The Xvfb test
   passed because the container's curls fail or succeed fast, unfreezing
   the bar before the assertion ran.
-- Fix shipped here: a build-time pin in lib/builds.sh rewrites sxbar's
-  `while (fgets…)` to `if (fgets…)` (single-line read, dwmblocks'
-  semantics — every sb-* script emits exactly one line), plus sb-forecast's
-  background subshell no longer inherits stdout (see
-  CHANGES-FROM-VOIDRICE.md). The Xvfb stage now injects a hanger module
+- Fix shipped here: a build-time pin (lib/sxbar-pin.sh, shared by
+  lib/builds.sh and the Xvfb stage) rewrites run_command(): modules run
+  under `timeout -k 1 5` with a poll()-bounded, single-line fgets
+  (dwmblocks' semantics — every sb-* script emits exactly one line), plus
+  sb-forecast's background subshell no longer inherits stdout (see
+  CHANGES-FROM-VOIDRICE.md). The Xvfb stage injects a hanger module
   (`sleep 300 & echo ok`) reproducing the pipe-holding grandchild
   deterministically and asserts on the bar's PIXELS: the active-workspace
   highlight span must leave label 1's box entirely and appear on the
   newly-active label's box.
+- The residual freeze class — a module that hangs BEFORE printing any
+  output — is CLOSED. It bit on hardware as sb-volume's `wpctl` hanging
+  against a session-manager-less PipeWire (wireplumber not running), and
+  `transmission-remote -l` against an unresponsive daemon has the same
+  shape. The pin covers it two ways: poll(2) with a 5s timeout precedes
+  the read (nothing pending → module renders empty for the tick), and
+  timeout(1) kills a hung module, closing the pipe so neither fgets nor
+  pclose's waitpid can block past ~5s. No module can blank the bar
+  indefinitely again.
 - sxbar.1 is an EMPTY file upstream; src/parser.c and default_sxbarc are
   the only accurate references for the `workspaces.*` keys. Our sxbarc
   matches them exactly.
-- Caveat the pin does NOT cover: a module that hangs before printing any
-  output (e.g. `transmission-remote -l` against an unresponsive daemon)
-  still blocks the first `fgets`. That class needs an upstream read
-  timeout; noted in the issue.
 - sxwm does not manage dock windows: it maps them and leaves them out of
   `_NET_CLIENT_LIST` (verified in src/sxwm.c). sxbar is unaffected (it
   draws its own dock window), but taskbars/pagers that enumerate

@@ -2,7 +2,7 @@
 
 # Usage:
 #	price <currency-base currency> <name of currency> <icon> <signal>
-#	price bat-btc "Basic Attention Token" 🦁 24
+#	price bat-btc "Basic Attention Token" "" 24
 #	This will give the price of BAT denominated in BTC and will update on
 #	signal 24.
 # When the name of the currency is multi-word, put it in quotes.
@@ -13,12 +13,12 @@ url="${CRYPTOURL:-rate.sx}"
 target="${1%%-*}"
 denom="${1##*-}"
 name="${2:-$1}"
-icon="${3:-💰}"
+icon="${3:-}"
 case "$denom" in
 	"$target"|usd) denom="usd"; symb="$" ;;
 	gbp) symb="£" ;;
 	eur) symb="€" ;;
-	btc) symb="" ;;
+	btc) symb="B" ;;
 esac
 interval="@14d"	# History contained in chart preceded by '@' (7d = 7 days)
 dir="${XDG_CACHE_HOME:-$HOME/.cache}/crypto-prices"
@@ -48,7 +48,6 @@ case $BLOCK_BUTTON in
 		notify-send "$icon $name module" "\- <b>Exact price: \$$(cat "$pricefile")</b>
 - Left click for chart of changes.
 - Middle click to update.
-- Shows 🔃 if updating prices.
 - <b>Last updated:
 	$uptime</b>" ;;
 	6) setsid -f "$TERMINAL" -e "$EDITOR" "$0" ;;

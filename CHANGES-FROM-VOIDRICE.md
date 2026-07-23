@@ -10,7 +10,7 @@ are added at deploy time from `static/` and noted at the bottom.
 - `.config/x11/xinitrc` — `dbus-launch ssh-agent dwm` → `… sxwm`: window manager changed.
 - `.config/shell/profile` — `BROWSER="librewolf"` → `"brave-browser"`: default browser changed; Debian's brave package ships `/usr/bin/brave-browser` (no `brave` binary).
 - `.config/x11/xprofile` — autostart `xcompmgr` → `picom`: xcompmgr is dead upstream; picom is the maintained replacement.
-- `.config/x11/xprofile` (the file `~/.xprofile` symlinks to) — dropped `pipewire` from `autostart`: PipeWire runs as systemd user units enabled at install time (`systemctl --global enable pipewire pipewire-pulse wireplumber`), not as a session-spawned process.
+- `.config/x11/xprofile` (the file `~/.xprofile` symlinks to) — dropped `pipewire` from `autostart`: PipeWire runs as systemd user units enabled at install time, not as a session-spawned process. The vendored `.config/pipewire/pipewire.conf.d/user-session.conf` (which made the session-spawned pipewire exec its own session manager) is dropped with it — with the systemd units in place it double-spawned wireplumber. Enablement is written both globally (`systemctl --global enable pipewire pipewire-pulse wireplumber`) and per-user (the `~/.config/systemd/user` symlinks `systemctl --user enable` writes): hardware showed global-only enablement leaving all three units inactive at first login — sb-volume's `wpctl` hung on a session-manager-less PipeWire — and the per-user links are what fixed it.
 - `.config/shell/aliasrc` — dropped `pacman` from the sudo-alias loop and `p="pacman"` → `p="sudo apt"`: repo must contain zero pacman references (apt-only).
 - `.config/shell/bm-files` — `cfb` bookmark now points to `~/.config/sxbar/sxbarc`: bar config moved from dwmblocks' config.h to sxbarc.
 - `.config/gtk-2.0/gtkrc-2.0` — theme `Arc-Gruvbox` → `Arc-Dark`: AUR theme unavailable; arc-theme (apt) is the nearest equivalent.
@@ -21,7 +21,9 @@ are added at deploy time from `static/` and noted at the bottom.
 - `.local/bin/sysact` — `WM="sxwm"`; "renew" sends `xdotool key super+F5` (sxwm reload_config) instead of SIGHUP, which would kill sxwm (it installs no SIGHUP handler); dropped the volume bar-signal in `lock()`.
 - `.local/bin/setbg` — removed the `pidof dwm && xdotool key super+F5` line: sxwm does not theme from Xresources, so there is no WM color scheme to refresh.
 - `.local/bin/statusbar/sb-help-icon` — checks `pidof sxwm`, serves `/usr/local/share/debrice/larbs.mom`, middle-click sends the sxwm reload key instead of `pkill -HUP dwm`.
-- `.local/bin/statusbar/sb-volume` — removed `pkill -RTMIN+10 dwmblocks` from the click action: no signal API in sxbar.
+- `.local/bin/statusbar/sb-volume` — replaced with a pactl-based version printing `Vol 40%` (or `Muted`): the whole audio path — module and sxwmrc binds — is one API (pactl); the wpctl version is gone.
+- `.local/bin/statusbar/*` — de-emoji sweep: every module prints short ASCII labels instead of icon/emoji glyphs (`Vol 40%`, `45MB dn / 1.2MB up`, `WiFi 73% Eth`, `Rain 20%  Low 5°  High 12°`, clock without the clockface, moon phase by name, torrents as letter codes, `?` for help); notify-send titles/legends de-emojied to match. sb-moonphase keeps emoji in its case patterns only (they match wttr.in's `%m` output, never printed); sb-cpubars' block bars and °/£/€ stay (functional glyphs, not emoji).
+- `.local/bin/cron/newsup` — writes `(sync)` instead of 🔃 to `/tmp/newsupdate` (the text sb-news displays while reloading); notify-send titles de-emojied.
 - `.local/bin/statusbar/sb-mailbox` — removed `pkill -RTMIN+12 dwmblocks`: same reason.
 - `.local/bin/statusbar/sb-internet` — removed `pkill -RTMIN+4 dwmblocks`: same reason.
 - `.local/bin/statusbar/sb-kbselect` — removed `pkill -RTMIN+30 dwmblocks`: same reason.

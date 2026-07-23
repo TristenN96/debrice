@@ -87,10 +87,11 @@ workspace : mod + shift + 9 : swap 9
 # and mod+shift+0 (tag all/sticky) have no workspace analog — DIFFERENCES.md.
 
 # Volume (dwmblocks refresh signals dropped; sxbar polls sb-volume).
-bind : mod + minus : "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
-bind : mod + shift + minus : "wpctl set-volume @DEFAULT_AUDIO_SINK@ 15%-"
-bind : mod + equal : "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"
-bind : mod + shift + equal : "wpctl set-volume @DEFAULT_AUDIO_SINK@ 15%+"
+# Whole audio path is pactl, matching sb-volume.
+bind : mod + minus : "pactl set-sink-volume @DEFAULT_SINK@ -5%"
+bind : mod + shift + minus : "pactl set-sink-volume @DEFAULT_SINK@ -15%"
+bind : mod + equal : "pactl set-sink-volume @DEFAULT_SINK@ +5%"
+bind : mod + shift + equal : "pactl set-sink-volume @DEFAULT_SINK@ +15%"
 
 # System menu and window close.
 bind : mod + BackSpace : "sysact"
@@ -171,7 +172,7 @@ bind : mod + b : "sh -c 'pkill -x sxbar || sxbar &'"
 bind : mod + n : "st -e nvim -c VimwikiIndex"
 bind : mod + shift + n : "st -e newsboat"
 bind : mod + m : "st -e ncmpcpp"
-bind : mod + shift + m : "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+bind : mod + shift + m : "pactl set-sink-mute @DEFAULT_SINK@ toggle"
 
 # Monitors (dwm focusmon/tagmon).
 bind : mod + Left : focus_prev_mon
@@ -206,9 +207,9 @@ bind : mod + shift + Print : "dmenurecord kill"
 bind : mod + Delete : "dmenurecord kill"
 
 # Media and hardware keys.
-bind : XF86AudioMute : "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
-bind : XF86AudioRaiseVolume : "sh -c 'wpctl set-volume @DEFAULT_AUDIO_SINK@ 0%- && wpctl set-volume @DEFAULT_AUDIO_SINK@ 3%+'"
-bind : XF86AudioLowerVolume : "sh -c 'wpctl set-volume @DEFAULT_AUDIO_SINK@ 0%+ && wpctl set-volume @DEFAULT_AUDIO_SINK@ 3%-'"
+bind : XF86AudioMute : "pactl set-sink-mute @DEFAULT_SINK@ toggle"
+bind : XF86AudioRaiseVolume : "pactl set-sink-volume @DEFAULT_SINK@ +3%"
+bind : XF86AudioLowerVolume : "pactl set-sink-volume @DEFAULT_SINK@ -3%"
 bind : XF86AudioPrev : "mpc prev"
 bind : XF86AudioNext : "mpc next"
 bind : XF86AudioPause : "mpc pause"
@@ -558,8 +559,13 @@ and the directive now used in `static/sxwmrc`. "Dropped" entries point at
   NumLock on. Verified in `src/sxwm.c`; no user action needed.
 - **PipeWire:** the session no longer spawns `pipewire` from xprofile;
   `pipewire`, `pipewire-pulse` and `wireplumber` are enabled as systemd
-  user units at install time (`systemctl --global enable`) and start at
-  first graphical login. The `wpctl`/`pactl` binds are unchanged.
+  user units at install time — globally AND via per-user symlinks in
+  `~/.config/systemd/user` (hardware: global-only enablement left all
+  three inactive at first login; sb-volume hung until `systemctl --user
+  enable --now`). The voidrice `pipewire.conf.d/user-session.conf` (spawn
+  a session manager from pipewire) is dropped — it double-spawned
+  wireplumber under the units. Volume binds and sb-volume are both pactl
+  (one API for the whole audio path).
 - **Dependency coverage:** `scripts/check-session-deps.sh` checks every
   command in the session files AND every quoted bind/exec action in the
   deployed sxwmrc against PATH in the e2e container (52 commands), so a

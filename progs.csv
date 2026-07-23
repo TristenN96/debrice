@@ -45,6 +45,7 @@ R,brave-browser,"is the default browser of debrice, installed from Brave's offic
 ,pipewire-pulse,"gives pipewire compatibility with PulseAudio programs."
 ,pulsemixer,"is an audio controller."
 ,pulseaudio-utils,"provides pactl, used by the microphone mute binding."
+,rtkit,"gives PipeWire realtime scheduling priority (silences mod.rt warnings)."
 ,sc-im,"is an Excel-like terminal spreadsheet manager."
 ,maim,"can take quick screenshots at your request."
 ,abook,"is an offline addressbook usable by neomutt."

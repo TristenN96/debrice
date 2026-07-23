@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Displays today's precipication chance (☔), and daily low (🥶) and high (🌞).
+# Displays today's precipitation chance, and daily low and high temperatures.
 # Usually intended for the statusbar.
 
 url="${WTTRURL:-wttr.in}"
@@ -37,17 +37,17 @@ readfile() { weatherdata="$(cat "$weatherreport")" ;}
 showweather() {
 	readfile
 	# shellcheck disable=SC2046,SC2183
-	printf "☔%s 🥶%s° 🌞%s°\n" "$(getprecipchance)" $(getdailyhighlow)
+	printf "Rain %s  Low %s°  High %s°\n" "$(getprecipchance)" $(getdailyhighlow)
 }
 
 case $BLOCK_BUTTON in
 	1) setsid -f "$TERMINAL" -e less -Sf "$weatherreport" ;;
 	2) getforecast && showweather ;;
-	3) notify-send "🌈 Weather module" "\- Left click for full forecast.
+	3) notify-send "Weather module" "\- Left click for full forecast.
 - Middle click to update forecast.
-☔: Chance of rain/snow
-🥶: Daily low
-🌞: Daily high" ;;
+Rain: chance of rain/snow
+Low: daily low
+High: daily high" ;;
 	6) setsid -f "$TERMINAL" -e "$EDITOR" "$0" ;;
 esac
 

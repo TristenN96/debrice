@@ -8,6 +8,11 @@
 # Repos whose default make target installs (nothing to compile).
 NOBUILD_REPOS="mutt-wizard"
 
+# Directory holding this library (and sxbar-pin.sh) — works both from a
+# full checkout and from the bootstrap clone (debrice.sh sources lib/ from
+# either).
+BUILDS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # gitmakeinstall GITURL — clone (or update) a repo into $repodir as $name,
 # build as $name where there is something to build, then make install as root.
 gitmakeinstall() {
@@ -39,24 +44,17 @@ gitmakeinstall() {
 			;;
 		sxbar)
 			# sxbar freeze pin (hardware-confirmed, uint23/sxbar#19):
-			# run_command() reads each module's popen pipe until EOF, but
-			# sb-* scripts background retry jobs that inherit the pipe
-			# (sb-forecast's wttr.in loop is unbounded when the fetch
-			# keeps failing). EOF never comes, sxbar's single-threaded
-			# loop blocks in fgets, and the whole bar freezes — workspace
-			# highlight included. dwmblocks reads a single line per
-			# module; pin sxbar to the same semantics: read one line
-			# (while→if) and turn the loop body's two allocation-failure
-			# `break;`s (the only ones in the file) into plain returns —
-			# `break` is illegal once the loop is gone. Both seds are
-			# no-ops on an already-pinned tree. Fail loudly if upstream
-			# reshapes run_command() — the pin must move with it.
-			grep -q 'fgets(buffer, sizeof buffer, fp)' \
-				"$dir/src/modules.c" || return 1
-			sudo -u "$name" sed -i \
-				-e 's/while (fgets(buffer, sizeof buffer, fp)) {/if (fgets(buffer, sizeof buffer, fp)) {/' \
-				-e 's|break;|pclose(fp); return res ? res : strdup("");|' \
-				"$dir/src/modules.c" || return 1
+			# upstream run_command() blocks in fgets on each module's
+			# popen pipe — a backgrounded grandchild holding the pipe, a
+			# module hanging before printing, or a module that never
+			# exits each freezes the whole bar (workspace highlight
+			# included). lib/sxbar-pin.sh rewrites run_command() to run
+			# modules under timeout(1) with a poll()-bounded single-line
+			# read; shared with the Xvfb test stage so the tested build
+			# matches the installed one. Run as $name so the clone stays
+			# user-owned; the script fails loudly if upstream reshapes
+			# run_command() — the pin must move with it.
+			sudo -u "$name" bash "$BUILDS_LIB_DIR/sxbar-pin.sh" "$dir" || return 1
 			;;
 		esac
 		(cd "$dir" && sudo -u "$name" make >/dev/null) || return 1

@@ -78,6 +78,7 @@ spawn_token() {
 	case "$tok" in
 	librewolf) tok="brave" ;;
 	sudo) tok="systemctl" ;; # "sudo -A zzz" -> "systemctl suspend"
+	wpctl) tok="pactl" ;; # whole audio path is pactl (sb-volume + binds)
 	esac
 	printf '%s\n' "$tok"
 }

@@ -187,6 +187,41 @@ sudo -u debricetest /debrice/scripts/check-session-deps.sh \
 	&& [ -L /etc/systemd/user/default.target.wants/pipewire-pulse.service ] \
 	&& [ -L /etc/systemd/user/pipewire.service.wants/wireplumber.service ] \
 	|| { echo "RUNTIME FAILED: pipewire user units not enabled"; exit 1; }
+# ... and per-user: hardware showed global enablement alone leaving all
+# three units inactive at first graphical login (sb-volume hung on a
+# session-manager-less PipeWire; `systemctl --user list-units` showed
+# nothing). debrice.sh therefore also writes the per-user enablement
+# symlinks `systemctl --user enable` would write. is-enabled reads
+# enablement state offline (no user bus exists in the container) — run it
+# as the installed user (-H: their HOME, where the per-user links live).
+[ -L /home/debricetest/.config/systemd/user/default.target.wants/pipewire.service ] \
+	&& [ -L /home/debricetest/.config/systemd/user/default.target.wants/pipewire-pulse.service ] \
+	&& [ -L /home/debricetest/.config/systemd/user/pipewire.service.wants/wireplumber.service ] \
+	|| { echo "RUNTIME FAILED: per-user pipewire enablement symlinks missing"; exit 1; }
+for u in wireplumber pipewire pipewire-pulse; do
+	[ "$(sudo -Hu debricetest systemctl --user is-enabled "$u")" = enabled ] \
+		|| { echo "RUNTIME FAILED: systemctl --user is-enabled $u did not report enabled"; exit 1; }
+done
+# PipeWire boot race (hardware run #6): the vendored pipewire.conf.d/
+# user-session.conf made pipewire.service exec its own wireplumber child
+# while wireplumber.service started a second instance — TWO session
+# managers wedged the stack at login: wpctl AND pactl hung with all units
+# "active running", and only a manual restart unwedged it. Assert no
+# duplicate-session-manager source survives: no pipewire/wireplumber
+# launch in the deployed session files, no pipewire.conf.d in the
+# deployed home, and each unit enabled exactly once per scope (one global
+# link + one per-user link, no more).
+if grep -qE 'pipewire|wireplumber' \
+	/home/debricetest/.config/x11/xprofile /home/debricetest/.xprofile; then
+	echo "RUNTIME FAILED: pipewire/wireplumber launch in deployed session files"; exit 1
+fi
+[ ! -e /home/debricetest/.config/pipewire ] \
+	|| { echo "RUNTIME FAILED: deployed pipewire.conf.d (duplicate session-manager spawn)"; exit 1; }
+for u in pipewire.service pipewire-pulse.service wireplumber.service; do
+	[ "$(find /etc/systemd/user /home/debricetest/.config/systemd/user \
+		-lname "*/$u" | wc -l)" = 2 ] \
+		|| { echo "RUNTIME FAILED: $u not enabled exactly once per scope (global + per-user)"; exit 1; }
+done
 # Default wallpaper: deploy must land ~/.local/share/bg (symlink to the
 # shipped ship.jpg), and setbg's runner must be on PATH.
 [ -e /home/debricetest/.local/share/bg ] \
@@ -199,13 +234,15 @@ command -v xwallpaper >/dev/null 2>&1 \
 # an Xvfb assertion would prove nothing.)
 grep -q '^float alpha = 0.85;' /home/debricetest/.local/src/st/config.h \
 	|| { echo "RUNTIME FAILED: st alpha pin did not land in config.h"; exit 1; }
-# sxbar freeze pin (uint23/sxbar#19): the single-line-read sed must have
+# sxbar freeze pin (uint23/sxbar#19): the module-read bounds must have
 # landed in the build tree — an unpinned sxbar freezes the whole bar
-# (workspace highlight included) the first time sb-forecast backgrounds a
-# retry with a stale cache.
-grep -q 'if (fgets(buffer, sizeof buffer, fp)) {' \
-	/home/debricetest/.local/src/sxbar/src/modules.c \
-	|| { echo "RUNTIME FAILED: sxbar single-line-read pin did not land in src/modules.c"; exit 1; }
+# (workspace highlight included) the first time a module hangs: a
+# backgrounded grandchild holding the popen pipe (sb-forecast), a module
+# hanging before printing (sb-volume against a session-manager-less
+# PipeWire), or a module that never exits (pclose's waitpid).
+grep -q 'timeout -k 1 5' /home/debricetest/.local/src/sxbar/src/modules.c \
+	&& grep -q 'poll(&pfd, 1, 5000)' /home/debricetest/.local/src/sxbar/src/modules.c \
+	|| { echo "RUNTIME FAILED: sxbar module-read timeout pin did not land in src/modules.c"; exit 1; }
 command -v picom >/dev/null 2>&1 \
 	|| { echo "RUNTIME FAILED: picom not on PATH after install"; exit 1; }
 # picom startup config: Debian 13's picom FATALs on a bare invocation
@@ -220,7 +257,7 @@ grep -q '^backend = "glx";' /home/debricetest/.config/picom/picom.conf \
 	|| { echo "RUNTIME FAILED: ~/.config/sxbar/sxbarc not deployed"; exit 1; }
 [ ! -e /home/debricetest/.config/sxbarc ] \
 	|| { echo "RUNTIME FAILED: legacy ~/.config/sxbarc still present"; exit 1; }
-echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps, pipewire units, wallpaper, st alpha, picom config)"
+echo "RUNTIME OK (end-to-end: prereqs, apt, repo, 6 git builds, dotfiles, summary, session deps, pipewire units (global + per-user, is-enabled), wallpaper, st alpha, picom config)"
 EOF
 }
 
@@ -471,17 +508,11 @@ make -C /tmp/sxwm install PREFIX=/usr/local >/dev/null
 # sxbar too: the workspace-highlight tracking is asserted below. The shipped
 # sxwmrc autostarts it via exec, which is exactly the path under test.
 git clone --depth 1 -q https://github.com/uint23/sxbar.git /tmp/sxbar
-# Apply the same build-time pin as lib/builds.sh (KEEP IN SYNC): read one
-# line per module instead of reading the popen pipe to EOF — a backgrounded
-# module grandchild holding the pipe otherwise freezes the whole bar
-# (uint23/sxbar#19). The stage tests the shipped rice, so it must test the
-# patched build.
-grep -q 'fgets(buffer, sizeof buffer, fp)' /tmp/sxbar/src/modules.c \
-	|| { echo "sxbar pin anchor missing — upstream reshaped run_command()"; exit 1; }
-sed -i \
-	-e 's/while (fgets(buffer, sizeof buffer, fp)) {/if (fgets(buffer, sizeof buffer, fp)) {/' \
-	-e 's|break;|pclose(fp); return res ? res : strdup("");|' \
-	/tmp/sxbar/src/modules.c
+# Apply the same build-time pin as the install — shared script
+# (lib/sxbar-pin.sh, also used by lib/builds.sh), so the stage tests
+# exactly the build the install ships: modules run under timeout(1) with
+# a poll()-bounded single-line read (uint23/sxbar#19).
+bash /debrice/lib/sxbar-pin.sh /tmp/sxbar
 make -C /tmp/sxbar >/dev/null
 make -C /tmp/sxbar install PREFIX=/usr/local >/dev/null
 mkdir -p /root/.config/sxbar
@@ -491,7 +522,7 @@ cp /debrice/static/sxbarc /root/.config/sxbar/sxbarc
 # backgrounded child that inherits sxbar's popen pipe and holds it open —
 # the exact sb-forecast shape that froze the bar on hardware (a stale
 # weather cache + failing wttr.in makes that grandchild unbounded). Without
-# the single-line-read pin above, sxbar blocks in fgets on the first module
+# the module-read pin above, sxbar blocks in fgets on the first module
 # tick and every assertion below fails; with it, the bar keeps running.
 cat >>/root/.config/sxbar/sxbarc <<'SXBARC_EOF'
 module.13.name       : hanger
